@@ -11,10 +11,10 @@ module Cardano.Tracer.Handlers.Logs.Journal
 
 #ifdef SYSTEMD
 import qualified Cardano.Logging as L
+import           Cardano.Tracer.Handlers.Utils (normalizeNamespace)
 #endif
 import           Cardano.Logging (TraceObject (..))
 import           Cardano.Tracer.Configuration (LogFormat (..))
-import           Cardano.Tracer.Handlers.Utils (normalizeNamespace)
 import           Cardano.Tracer.Types (NodeName)
 
 #ifdef SYSTEMD
