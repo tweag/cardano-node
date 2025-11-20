@@ -71,6 +71,7 @@ makeTopology ports = object
   , "useLedgerAfterSlot" .= id @Int (-1)
   , "publicRoots" .= id @[()] []
   , "bootstrapPeers" .= id @[()] []
+  , "trustable" .= True
   ]
   -- NetworkTopology
   --   { localRootPeersGroups =
