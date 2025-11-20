@@ -200,7 +200,7 @@ import Ouroboros.Consensus.Storage.Serialisation
   , encodeTrivialSerialisedHeader
   )
 import Cardano.Logging.Types (LogFormatting (..))
-import Ouroboros.Consensus.Block (ChainHash)
+import Ouroboros.Consensus.Block (ChainHash, BlockSupportsMetrics)
 import Ouroboros.Consensus.Protocol.BFT (BftValidationErr)
 import Ouroboros.Consensus.Ledger.Query (SomeBlockQuery)
 import Data.Measure.Class (Measure(..))
@@ -249,10 +249,6 @@ type instance ForgeStateInfo TestBlock = TestBlock
 type instance ForgeStateUpdateError TestBlock = TestBlock
 type instance CannotForge TestBlock = TestBlock
 data instance Validated (GenTx TestBlock)
--- instance ShowProxy (ApplyTxErr TestBlock)
--- instance Show (ForgeStateUpdateError TestBlock)
--- instance Show (ForgeStateInfo TestBlock)
--- instance Show (CannotForge TestBlock)
 instance ShowProxy (BlockQuery TestBlock)
 instance ShowProxy (TxId (GenTx TestBlock))
 instance ShowProxy (GenTx TestBlock)
@@ -260,47 +256,47 @@ instance Show (GenTx TestBlock)
 instance Show (Validated (GenTx TestBlock))
 deriving instance Generic (Validated (GenTx TestBlock))
 instance NoThunks (Validated (GenTx TestBlock)) where
-  noThunks = undefined
-  wNoThunks = undefined
-  showTypeOf = undefined
+  noThunks = error "instance NoThunks (Validated (GenTx TestBlock))"
+  wNoThunks = error "instance NoThunks (Validated (GenTx TestBlock))"
+  showTypeOf = error "instance NoThunks (Validated (GenTx TestBlock))"
 instance BlockSupportsSanityCheck TestBlock where
-  configAllSecurityParams = undefined
+  configAllSecurityParams = error "instance BlockSupportsSanityCheck TestBlock"
 instance BlockSupportsMetrics TestBlock where
-  isSelfIssued = undefined
+  isSelfIssued = error "instance BlockSupportsMetrics TestBlock"
 instance NodeInitStorage TestBlock where
-  nodeImmutableDbChunkInfo = undefined
-  nodeCheckIntegrity = undefined
+  nodeImmutableDbChunkInfo = error "instance NodeInitStorage TestBlock"
+  nodeCheckIntegrity = error "instance NodeInitStorage TestBlock"
 instance LedgerSupportsPeerSelection TestBlock where
-  getPeers = undefined
+  getPeers = error "instance LedgerSupportsPeerSelection TestBlock"
 instance SerialiseNodeToClientConstraints TestBlock
 instance CommonProtocolParams TestBlock where
-  maxHeaderSize = undefined
-  maxTxSize = undefined
+  maxHeaderSize = error "instance CommonProtocolParams TestBlock"
+  maxTxSize = error "instance CommonProtocolParams TestBlock"
 instance SupportedNetworkProtocolVersion TestBlock where
-  supportedNodeToNodeVersions = undefined
-  supportedNodeToClientVersions = undefined
+  supportedNodeToNodeVersions _ = foldMap (`Map.singleton` ()) [minBound .. maxBound]
+  supportedNodeToClientVersions _ = foldMap (`Map.singleton` ()) [minBound .. maxBound]
   latestReleasedNodeVersion = latestReleasedNodeVersionDefault
 instance LedgerSupportsMempool TestBlock where
-  applyTx = undefined
-  reapplyTx = undefined
-  txForgetValidated = undefined
-  getTransactionKeySets = undefined
+  applyTx = error "instance LedgerSupportsMempool TestBlock"
+  reapplyTx = error "instance LedgerSupportsMempool TestBlock"
+  txForgetValidated = error "instance LedgerSupportsMempool TestBlock"
+  getTransactionKeySets = error "instance LedgerSupportsMempool TestBlock"
 instance TxLimits TestBlock where
   type TxMeasure TestBlock = TestBlock -- which type goes here?
-  txMeasure = undefined
-  blockCapacityTxMeasure = undefined
+  txMeasure = error "instance TxLimits TestBlock"
+  blockCapacityTxMeasure = error "instance TxLimits TestBlock"
 instance TxMeasureMetrics TestBlock where
-  txMeasureMetricTxSizeBytes = undefined
-  txMeasureMetricExUnitsMemory = undefined
-  txMeasureMetricExUnitsSteps = undefined
-  txMeasureMetricRefScriptsSizeBytes = undefined
+  txMeasureMetricTxSizeBytes = error "instance TxMeasureMetrics TestBlock"
+  txMeasureMetricExUnitsMemory = error "instance TxMeasureMetrics TestBlock"
+  txMeasureMetricExUnitsSteps = error "instance TxMeasureMetrics TestBlock"
+  txMeasureMetricRefScriptsSizeBytes = error "instance TxMeasureMetrics TestBlock"
 instance HasByteSize TestBlock where
-  txMeasureByteSize = undefined
+  txMeasureByteSize = error "instance HasByteSize TestBlock"
 instance Measure TestBlock where
-  zero = undefined
-  plus = undefined
-  min = undefined
-  max = undefined
+  zero = error "instance Measure TestBlock"
+  plus = error "instance Measure TestBlock"
+  min = error "instance Measure TestBlock"
+  max = error "instance Measure TestBlock"
 instance NoThunks (TxId (GenTx TestBlock))
 instance NoThunks (GenTx TestBlock)
 deriving instance Generic (TxId (GenTx TestBlock))
@@ -310,18 +306,18 @@ deriving instance Show (TxId (GenTx TestBlock))
 instance HasKESMetricsData TestBlock
 instance HasKESInfo TestBlock
 instance ConvertTxId TestBlock where
-  txIdToRawBytes = undefined
+  txIdToRawBytes = error "instance ConvertTxId TesBlock"
 instance HasIssuer TestBlock where
-  getIssuerVerificationKeyHash = undefined
+  getIssuerVerificationKeyHash = error "instance HasIssuer TestBlock"
 instance HasTxs TestBlock where
-  extractTxs = undefined
+  extractTxs = error "instance HasTxs TestBlock"
 instance HasTxId (GenTx TestBlock) where
-  txId = undefined
+  txId = error "instance HasTxId (GenTx TestBlock)"
 instance LedgerQueries TestBlock where
-  ledgerUtxoSize = undefined
-  ledgerDelegMapSize = undefined
-  ledgerDRepCount = undefined
-  ledgerDRepMapSize = undefined
+  ledgerUtxoSize = error "instance LedgerQueries TestBlock"
+  ledgerDelegMapSize = error "instance LedgerQueries TestBlock"
+  ledgerDRepCount = error "instance LedgerQueries TestBlock"
+  ledgerDRepMapSize = error "instance LedgerQueries TestBlock"
 instance Api.ToJSON (TxId (GenTx TestBlock))
 instance Api.ToJSON (GenTx TestBlock)
 instance Api.ToJSON (Header TestBlock)
@@ -338,20 +334,20 @@ instance ToObject (Header TestBlock)
 instance ToObject (TestBlockError ())
 instance ToObject Api.BlockNo
 instance LogFormatting TestBlock where
-  forMachine = undefined
+  forMachine = error "instance LogFormatting TestBlock"
 instance LogFormatting (GenTx TestBlock) where
-  forMachine = undefined
+  forMachine = error "instance LogFormatting (GenTx TestBlock)"
 instance LogFormatting (Header TestBlock) where
-  forMachine = undefined
+  forMachine = error "instance LogFormatting (Header TestBlock)"
 instance LogFormatting (TestBlockError ()) where
-  forMachine = undefined
+  forMachine = error "instance LogFormatting (TestBlockError ())"
 instance LogFormatting Api.BlockNo where
-  forMachine = undefined
+  forMachine = error "instance LogFormatting Api.BlockNo"
 instance LogFormatting BftValidationErr where
-  forMachine = undefined
+  forMachine = error "instance LogFormatting BftValidationErr"
 instance SerialiseBlockQueryResult TestBlock BlockQuery where
-  encodeBlockQueryResult = undefined
-  decodeBlockQueryResult = undefined
+  encodeBlockQueryResult = error "instance SerialiseBlockQueryResult TestBlock BlockQuery"
+  decodeBlockQueryResult = error "instance SerialiseBlockQueryResult TestBlock BlockQuery"
 instance SerialiseNodeToClient TestBlock TestBlockLedgerConfig
 instance SerialiseNodeToClient TestBlock (SomeBlockQuery (BlockQuery TestBlock))
 instance Serialise TestBlockLedgerConfig
@@ -363,8 +359,8 @@ instance SerialiseNodeToClient TestBlock (Serialised TestBlock)
 instance SerialiseNodeToClient TestBlock TestBlock
 
 instance Serialise (SomeBlockQuery (BlockQuery TestBlock)) where
-  encode = undefined
-  decode = undefined
+  encode = error "instance Serialise (SomeBlockQuery (BlockQuery TestBlock))"
+  decode = error "instance Serialise (SomeBlockQuery (BlockQuery TestBlock))"
 
 runNode
   :: PartialNodeConfiguration
@@ -388,7 +384,7 @@ runNode cmdPc = do
           checkVRFFilePermissions stdoutTracer (File vrfFp)
       _ -> pure ()
 
-    let consensusProtocol = SomeConsensusProtocol @TestBlock (unsafeCoerce $ Api.ByronBlockType ) undefined
+    let consensusProtocol = SomeConsensusProtocol @TestBlock (unsafeCoerce Api.ByronBlockType ) (error "SomeConsensusProtocol: needs a ProtocolInfoArgs TestBlock")
 {-
     consensusProtocol <-
       runThrowExceptT $
