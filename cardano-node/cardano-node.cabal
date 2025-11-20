@@ -188,12 +188,13 @@ library
                       , lobemo-backend-ekg ^>= 0.2
                       , lobemo-backend-monitoring
                       , lobemo-backend-trace-forwarder
+                      , measures
                       , mtl
                       , network
                       , network-mux >= 0.8
                       , nothunks
                       , optparse-applicative-fork >= 0.18.1
-                      , ouroboros-consensus ^>= 0.27
+                      , ouroboros-consensus:{ouroboros-consensus, unstable-consensus-testlib} ^>= 0.27
                       , ouroboros-consensus-cardano ^>= 0.25
                       , ouroboros-consensus-diffusion ^>= 0.23
                       , ouroboros-consensus-protocol
@@ -208,6 +209,7 @@ library
                       , resource-registry
                       , safe-exceptions
                       , scientific
+                      , serialise
                       , si-timers
                       , sop-core
                       -- avoid stm-2.5.2 https://github.com/haskell/stm/issues/76
