@@ -32,6 +32,12 @@ packages:
   trace-resources
   trace-forward
 
+source-repository-package
+    type: git
+    branch: 2633eea13e4358a2fce81216bb267004b6d6817c
+    location: https://github.com/tweag/ouroboros-consensus-testing.git
+    subdir: ouroboros-consensus-diffusion
+
 extra-packages: Cabal
 
 program-options
@@ -94,12 +100,7 @@ if impl (ghc >= 9.12)
 
     , ouroboros-network-protocols:base
 
+
 constraints:
     hedgehog-extras == 0.7.0.0
 
-
-source-repository-package:
-    type: git
-    ref: back-in-time
-    location: https:// github.com/tweag/ouroboros-consensus-testing
-    subdir: ouroboros-consensus-diffusion
