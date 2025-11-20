@@ -96,3 +96,10 @@ if impl (ghc >= 9.12)
 
 constraints:
     hedgehog-extras == 0.7.0.0
+
+
+source-repository-package:
+    type: git
+    ref: back-in-time
+    location: https:// github.com/tweag/ouroboros-consensus-testing
+    subdir: ouroboros-consensus-diffusion
