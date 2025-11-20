@@ -7,6 +7,7 @@
 
 module Orphans () where
 
+import qualified Data.Map as Map
 import Codec.Serialise (Serialise (decode, encode))
 import GHC.Generics (Generic)
 import Ouroboros.Consensus.Block (Header)
@@ -27,12 +28,18 @@ import Ouroboros.Consensus.Storage.Serialisation
   , encodeTrivialSerialisedHeader
   )
 import Ouroboros.Network.Block (Serialised)
+import Ouroboros.Consensus.Node.NetworkProtocolVersion (SupportedNetworkProtocolVersion (..), latestReleasedNodeVersionDefault)
 import Test.Util.TestBlock (TestBlock)
 
 -- * Target instances
 
 instance SerialiseNodeToNodeConstraints TestBlock where
   estimateBlockSize = const 0
+
+instance SupportedNetworkProtocolVersion TestBlock where
+    supportedNodeToNodeVersions _ = foldMap (`Map.singleton` ()) [minBound .. maxBound]
+    supportedNodeToClientVersions _ = foldMap (`Map.singleton` ()) [minBound .. maxBound]
+    latestReleasedNodeVersion = latestReleasedNodeVersionDefault
 
 -- ** Instances needed to fulfill the constrainst for @SerializeNodeToNodeContraints TestBlock@
 
