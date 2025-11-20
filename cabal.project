@@ -34,7 +34,8 @@ packages:
 
 source-repository-package
     type: git
-    branch: 2633eea13e4358a2fce81216bb267004b6d6817c
+    tag: 0ea1567492e6c0643f39d9b5c4de87f1ccb84c10
+    --sha256: sha256-ENBWMe5v1+jlKlUsBRu0w8e0f3LJXT+rwnT1EGO0zTM=
     location: https://github.com/tweag/ouroboros-consensus-testing.git
     subdir: ouroboros-consensus-diffusion
 
