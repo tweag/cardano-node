@@ -64,59 +64,59 @@ getStartupInfo
   -> SomeConsensusProtocol
   -> FilePath
   -> IO [StartupTrace blk]
-getStartupInfo nc (SomeConsensusProtocol whichP pForInfo) fp = do
-  nodeStartTime <- getCurrentTime
-  let cfg = pInfoConfig $ fst $ Api.protocolInfo @IO pForInfo
-      basicInfoCommon = BICommon $ BasicInfoCommon {
-                biProtocol = pack . show $ ncProtocol nc
-              , biVersion  = pack . showVersion $ version
-              , biCommit   = $(gitRev)
-              , biNodeStartTime = nodeStartTime
-              , biConfigPath = fp
-              , biNetworkMagic = getNetworkMagic $ Consensus.configBlock cfg
-              }
-      protocolDependentItems =
-        case whichP of
-          Api.ByronBlockType ->
-            let DegenLedgerConfig cfgByron = Consensus.configLedger cfg
-            in [getGenesisValuesByron cfg cfgByron]
-          Api.ShelleyBlockType ->
-            let DegenLedgerConfig cfgShelley = Consensus.configLedger cfg
-            in [getGenesisValues "Shelley" cfgShelley]
-          Api.CardanoBlockType ->
-            let CardanoLedgerConfig cfgByron cfgShelley cfgAllegra cfgMary cfgAlonzo
-                                    cfgBabbage cfgConway = Consensus.configLedger cfg
-            in [ getGenesisValuesByron cfg cfgByron
-               , getGenesisValues "Shelley" cfgShelley
-               , getGenesisValues "Allegra" cfgAllegra
-               , getGenesisValues "Mary"    cfgMary
-               , getGenesisValues "Alonzo"  cfgAlonzo
-               , getGenesisValues "Babbage" cfgBabbage
-               , getGenesisValues "Conway"  cfgConway
-               ]
-  pure (basicInfoCommon : protocolDependentItems)
-    where
-      getGenesisValues era config =
-        let genesis = shelleyLedgerGenesis $ shelleyLedgerConfig config
-        in BIShelley $ BasicInfoShelleyBased {
-            bisEra               = era
-          , bisSystemStartTime   = SL.sgSystemStart genesis
-          , bisSlotLength        = WCT.getSlotLength . WCT.mkSlotLength
-                                      . SL.fromNominalDiffTimeMicro
-                                      $ SL.sgSlotLength genesis
-          , bisEpochLength       = unEpochSize . SL.sgEpochLength $ genesis
-          , bisSlotsPerKESPeriod = SL.sgSlotsPerKESPeriod genesis
-        }
-      getGenesisValuesByron cfg config =
-        let genesis = byronLedgerConfig config
-        in BIByron $ BasicInfoByron {
-            bibSystemStartTime = WCT.getSystemStart . getSystemStart
-                                  $ Consensus.configBlock cfg
-          , bibSlotLength      = WCT.getSlotLength . fromByronSlotLength
-                                  $ genesisSlotLength genesis
-          , bibEpochLength     = unEpochSize . fromByronEpochSlots
-                                  $ Gen.configEpochSlots genesis
-          }
+getStartupInfo nc (SomeConsensusProtocol whichP pForInfo) fp = pure []
+  -- nodeStartTime <- getCurrentTime
+  -- let cfg = pInfoConfig $ fst $ Api.protocolInfo @IO pForInfo
+  --     basicInfoCommon = BICommon $ BasicInfoCommon {
+  --               biProtocol = pack . show $ ncProtocol nc
+  --             , biVersion  = pack . showVersion $ version
+  --             , biCommit   = $(gitRev)
+  --             , biNodeStartTime = nodeStartTime
+  --             , biConfigPath = fp
+  --             , biNetworkMagic = getNetworkMagic $ Consensus.configBlock cfg
+  --             }
+  --     protocolDependentItems =
+  --       case whichP of
+  --         Api.ByronBlockType ->
+  --           let DegenLedgerConfig cfgByron = Consensus.configLedger cfg
+  --           in [getGenesisValuesByron cfg cfgByron]
+  --         Api.ShelleyBlockType ->
+  --           let DegenLedgerConfig cfgShelley = Consensus.configLedger cfg
+  --           in [getGenesisValues "Shelley" cfgShelley]
+  --         Api.CardanoBlockType ->
+  --           let CardanoLedgerConfig cfgByron cfgShelley cfgAllegra cfgMary cfgAlonzo
+  --                                   cfgBabbage cfgConway = Consensus.configLedger cfg
+  --           in [ getGenesisValuesByron cfg cfgByron
+  --              , getGenesisValues "Shelley" cfgShelley
+  --              , getGenesisValues "Allegra" cfgAllegra
+  --              , getGenesisValues "Mary"    cfgMary
+  --              , getGenesisValues "Alonzo"  cfgAlonzo
+  --              , getGenesisValues "Babbage" cfgBabbage
+  --              , getGenesisValues "Conway"  cfgConway
+  --              ]
+  -- pure $ pure (basicInfoCommon) -- : protocolDependentItems)
+  --   where
+  --     getGenesisValues era config =
+  --       let genesis = shelleyLedgerGenesis $ shelleyLedgerConfig config
+  --       in BIShelley $ BasicInfoShelleyBased {
+  --           bisEra               = era
+  --         , bisSystemStartTime   = SL.sgSystemStart genesis
+  --         , bisSlotLength        = WCT.getSlotLength . WCT.mkSlotLength
+  --                                     . SL.fromNominalDiffTimeMicro
+  --                                     $ SL.sgSlotLength genesis
+  --         , bisEpochLength       = unEpochSize . SL.sgEpochLength $ genesis
+  --         , bisSlotsPerKESPeriod = SL.sgSlotsPerKESPeriod genesis
+  --       }
+  --     getGenesisValuesByron cfg config =
+  --       let genesis = byronLedgerConfig config
+  --       in BIByron $ BasicInfoByron {
+  --           bibSystemStartTime = WCT.getSystemStart . getSystemStart
+  --                                 $ Consensus.configBlock cfg
+  --         , bibSlotLength      = WCT.getSlotLength . fromByronSlotLength
+  --                                 $ genesisSlotLength genesis
+  --         , bibEpochLength     = unEpochSize . fromByronEpochSlots
+  --                                 $ Gen.configEpochSlots genesis
+  --         }
 
 -- --------------------------------------------------------------------------------
 -- -- StartupInfo Tracer

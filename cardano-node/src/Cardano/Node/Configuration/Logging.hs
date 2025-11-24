@@ -331,36 +331,36 @@ nodeBasicInfo :: NodeConfiguration
               -> SomeConsensusProtocol
               -> UTCTime
               -> IO [LogObject Text]
-nodeBasicInfo nc (SomeConsensusProtocol whichP pForInfo) nodeStartTime' = do
-  meta <- mkLOMeta Notice Public
-  let cfg = pInfoConfig $ fst $ Api.protocolInfo @IO pForInfo
-      protocolDependentItems =
-        case whichP of
-          Api.ByronBlockType ->
-            let DegenLedgerConfig cfgByron = Consensus.configLedger cfg
-            in getGenesisValuesByron cfg cfgByron
-          Api.ShelleyBlockType ->
-            let DegenLedgerConfig cfgShelley = Consensus.configLedger cfg
-            in getGenesisValues "Shelley" cfgShelley
-          Api.CardanoBlockType ->
-            let CardanoLedgerConfig cfgByron cfgShelley cfgAllegra cfgMary cfgAlonzo
-                                    cfgBabbage cfgConway = Consensus.configLedger cfg
-            in getGenesisValuesByron cfg cfgByron
-               ++ getGenesisValues "Shelley" cfgShelley
-               ++ getGenesisValues "Allegra" cfgAllegra
-               ++ getGenesisValues "Mary"    cfgMary
-               ++ getGenesisValues "Alonzo"  cfgAlonzo
-               ++ getGenesisValues "Babbage" cfgBabbage
-               ++ getGenesisValues "Conway"  cfgConway
-      items = nub $
-        [ ("protocol",      pack . show $ ncProtocol nc)
-        , ("version",       pack . showVersion $ version)
-        , ("commit",        $(gitRev))
-        , ("nodeStartTime", textShow nodeStartTime')
-        ] ++ protocolDependentItems
-      logObjects =
-        map (\(nm, msg) -> LogObject ("basicInfo." <> nm) meta (LogMessage msg)) items
-  return logObjects
+nodeBasicInfo nc (SomeConsensusProtocol whichP pForInfo) nodeStartTime' = pure []
+  -- meta <- mkLOMeta Notice Public
+  -- let cfg = pInfoConfig $ fst $ Api.protocolInfo @IO pForInfo
+  --     protocolDependentItems =
+  --       case whichP of
+  --         Api.ByronBlockType ->
+  --           let DegenLedgerConfig cfgByron = Consensus.configLedger cfg
+  --           in getGenesisValuesByron cfg cfgByron
+  --         Api.ShelleyBlockType ->
+  --           let DegenLedgerConfig cfgShelley = Consensus.configLedger cfg
+  --           in getGenesisValues "Shelley" cfgShelley
+  --         Api.CardanoBlockType ->
+  --           let CardanoLedgerConfig cfgByron cfgShelley cfgAllegra cfgMary cfgAlonzo
+  --                                   cfgBabbage cfgConway = Consensus.configLedger cfg
+  --           in getGenesisValuesByron cfg cfgByron
+  --              ++ getGenesisValues "Shelley" cfgShelley
+  --              ++ getGenesisValues "Allegra" cfgAllegra
+  --              ++ getGenesisValues "Mary"    cfgMary
+  --              ++ getGenesisValues "Alonzo"  cfgAlonzo
+  --              ++ getGenesisValues "Babbage" cfgBabbage
+  --              ++ getGenesisValues "Conway"  cfgConway
+  --     items = nub $
+  --       [ ("protocol",      pack . show $ ncProtocol nc)
+  --       , ("version",       pack . showVersion $ version)
+  --       , ("commit",        $(gitRev))
+  --       , ("nodeStartTime", textShow nodeStartTime')
+  --       ] ++ protocolDependentItems
+  --     logObjects =
+  --       map (\(nm, msg) -> LogObject ("basicInfo." <> nm) meta (LogMessage msg)) items
+  -- return logObjects
  where
   getGenesisValuesByron cfg config =
     let genesis = byronLedgerConfig config
