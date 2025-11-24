@@ -330,3 +330,5 @@ executable conformance-test-runner
     ouroboros-consensus-diffusion,
     io-classes,
     cardano-node,
+    QuickCheck,
+
