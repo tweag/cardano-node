@@ -28,6 +28,7 @@ module Cardano.Node.Run
   , checkVRFFilePermissions
   ) where
 
+import           Ouroboros.Consensus.Storage.ImmutableDB (simpleChunkInfo)
 import           Cardano.Api (File (..), FileDirection (..))
 import           Cardano.Api.Internal.Error (displayError)
 import qualified Cardano.Api as Api
@@ -65,8 +66,8 @@ import           Cardano.Node.Tracing.StateRep (NodeState (NodeKernelOnline))
 import           Cardano.Node.Tracing.Tracers.NodeVersion (getNodeVersion)
 import           Cardano.Node.Tracing.Tracers.Startup (getStartupInfo)
 import           Cardano.Node.Types
-import           Cardano.Prelude (ExitCode (..), FatalError (..), bool, (:~:) (..))
-import           Cardano.Slotting.Slot (WithOrigin (..))
+import           Cardano.Prelude (ExitCode (..), FatalError (..), bool, (:~:) (..), Word64)
+import           Cardano.Slotting.Slot (WithOrigin (..), EpochSize (..))
 import           Cardano.Tracing.Config (TraceOptions (..), TraceSelection (..))
 import           Cardano.Tracing.Tracers
 
@@ -74,7 +75,7 @@ import qualified Ouroboros.Consensus.Config as Consensus
 import           Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (..))
 import           Ouroboros.Consensus.Node (SnapshotPolicyArgs (..), NetworkP2PMode (..),
                    NodeDatabasePaths (..), RunNodeArgs (..), StdRunNodeArgs (..), RunNode)
-import           Ouroboros.Consensus.Ledger.SupportsMempool (GenTxId, GenTx, TxId, ApplyTxErr, HasTxs (..), HasTxId (..), LedgerSupportsMempool (..), TxLimits (..), TxMeasureMetrics (..), HasByteSize (..))
+import           Ouroboros.Consensus.Ledger.SupportsMempool (GenTxId, GenTx, TxId, ApplyTxErr, HasTxs (..), HasTxId (..), LedgerSupportsMempool (..), TxLimits (..), TxMeasureMetrics (..), HasByteSize (..), ByteSize32(..), IgnoringOverflow(..))
 import           Ouroboros.Consensus.Node (NetworkP2PMode (..), RunNodeArgs (..),
                    SnapshotPolicyArgs (..), StdRunNodeArgs (..))
 import qualified Ouroboros.Consensus.Node as Node (NodeDatabasePaths (..), getChainDB, run)
@@ -177,7 +178,7 @@ import           Paths_cardano_node (version)
 import Test.Util.TestBlock
 import Unsafe.Coerce (unsafeCoerce)
 import Ouroboros.Consensus.Util (ShowProxy)
-import Cardano.Tracing.HasIssuer (HasIssuer (..))
+import Cardano.Tracing.HasIssuer (HasIssuer (..), BlockIssuerVerificationKeyHash(NoBlockIssuer))
 import Ouroboros.Consensus.Block.Forging (ForgeStateUpdateError, ForgeStateInfo, CannotForge)
 import Cardano.Node.Queries (GetKESInfo)
 import GHC.Generics (Generic (..))
@@ -260,12 +261,12 @@ instance NoThunks (Validated (GenTx TestBlock)) where
   wNoThunks = error "instance NoThunks (Validated (GenTx TestBlock))"
   showTypeOf = error "instance NoThunks (Validated (GenTx TestBlock))"
 instance BlockSupportsSanityCheck TestBlock where
-  configAllSecurityParams = error "instance BlockSupportsSanityCheck TestBlock"
+  configAllSecurityParams _ = pure $ Consensus.SecurityParam $ error "configAllSecurityParams"
 instance BlockSupportsMetrics TestBlock where
   isSelfIssued = error "instance BlockSupportsMetrics TestBlock"
 instance NodeInitStorage TestBlock where
-  nodeImmutableDbChunkInfo = error "instance NodeInitStorage TestBlock"
-  nodeCheckIntegrity = error "instance NodeInitStorage TestBlock"
+  nodeImmutableDbChunkInfo _ = simpleChunkInfo $ EpochSize 1
+  nodeCheckIntegrity _ _ = True
 instance LedgerSupportsPeerSelection TestBlock where
   getPeers = error "instance LedgerSupportsPeerSelection TestBlock"
 instance SerialiseNodeToClientConstraints TestBlock
@@ -282,21 +283,9 @@ instance LedgerSupportsMempool TestBlock where
   txForgetValidated = error "instance LedgerSupportsMempool TestBlock"
   getTransactionKeySets = error "instance LedgerSupportsMempool TestBlock"
 instance TxLimits TestBlock where
-  type TxMeasure TestBlock = TestBlock -- which type goes here?
-  txMeasure = error "instance TxLimits TestBlock"
-  blockCapacityTxMeasure = error "instance TxLimits TestBlock"
-instance TxMeasureMetrics TestBlock where
-  txMeasureMetricTxSizeBytes = error "instance TxMeasureMetrics TestBlock"
-  txMeasureMetricExUnitsMemory = error "instance TxMeasureMetrics TestBlock"
-  txMeasureMetricExUnitsSteps = error "instance TxMeasureMetrics TestBlock"
-  txMeasureMetricRefScriptsSizeBytes = error "instance TxMeasureMetrics TestBlock"
-instance HasByteSize TestBlock where
-  txMeasureByteSize = error "instance HasByteSize TestBlock"
-instance Measure TestBlock where
-  zero = error "instance Measure TestBlock"
-  plus = error "instance Measure TestBlock"
-  min = error "instance Measure TestBlock"
-  max = error "instance Measure TestBlock"
+  type TxMeasure TestBlock = IgnoringOverflow ByteSize32
+  txMeasure _ _ _= pure $ IgnoringOverflow $ ByteSize32 1
+  blockCapacityTxMeasure _ _ = IgnoringOverflow $ ByteSize32 1000
 instance NoThunks (TxId (GenTx TestBlock))
 instance NoThunks (GenTx TestBlock)
 deriving instance Generic (TxId (GenTx TestBlock))
@@ -308,7 +297,7 @@ instance HasKESInfo TestBlock
 instance ConvertTxId TestBlock where
   txIdToRawBytes = error "instance ConvertTxId TesBlock"
 instance HasIssuer TestBlock where
-  getIssuerVerificationKeyHash = error "instance HasIssuer TestBlock"
+  getIssuerVerificationKeyHash _ = NoBlockIssuer
 instance HasTxs TestBlock where
   extractTxs = error "instance HasTxs TestBlock"
 instance HasTxId (GenTx TestBlock) where
