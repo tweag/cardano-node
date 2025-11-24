@@ -329,3 +329,4 @@ executable conformance-test-runner
     cborg,
     ouroboros-consensus-diffusion,
     io-classes,
+    cardano-node,

@@ -39,6 +39,7 @@ import Test.Consensus.PointSchedule (PointSchedule (..))
 import Test.Consensus.PointSchedule.Peers (PeerId (..), Peers (Peers), getPeerIds)
 import Ouroboros.Network.NodeToNode (PeerAdvertise (..))
 import Ouroboros.Network.PeerSelection.RelayAccessPoint (PortNumber)
+import Cardano.Node.Run ()
 
 testPointSchedule :: PointSchedule blk
 testPointSchedule =

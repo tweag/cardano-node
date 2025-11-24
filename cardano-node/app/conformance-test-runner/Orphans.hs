@@ -31,27 +31,27 @@ import Test.Util.TestBlock (TestBlock)
 
 -- * Target instances
 
-instance SerialiseNodeToNodeConstraints TestBlock where
-  estimateBlockSize = const 0
+-- instance SerialiseNodeToNodeConstraints TestBlock where
+--   estimateBlockSize = const 0
 
--- ** Instances needed to fulfill the constrainst for @SerializeNodeToNodeContraints TestBlock@
+-- -- ** Instances needed to fulfill the constrainst for @SerializeNodeToNodeContraints TestBlock@
 
-instance SerialiseNodeToNode TestBlock TestBlock
-instance SerialiseNodeToNode TestBlock (Header TestBlock)
-instance SerialiseNodeToNode TestBlock (Serialised TestBlock)
-instance SerialiseNodeToNode TestBlock (SerialisedHeader TestBlock)
-instance SerialiseNodeToNode TestBlock (GenTx TestBlock)
-instance SerialiseNodeToNode TestBlock (GenTxId TestBlock)
+-- instance SerialiseNodeToNode TestBlock TestBlock
+-- instance SerialiseNodeToNode TestBlock (Header TestBlock)
+-- instance SerialiseNodeToNode TestBlock (Serialised TestBlock)
+-- instance SerialiseNodeToNode TestBlock (SerialisedHeader TestBlock)
+-- instance SerialiseNodeToNode TestBlock (GenTx TestBlock)
+-- instance SerialiseNodeToNode TestBlock (GenTxId TestBlock)
 
-data instance GenTx TestBlock
-data instance TxId (GenTx TestBlock)
-deriving instance Generic (GenTx TestBlock)
+-- data instance GenTx TestBlock
+-- data instance TxId (GenTx TestBlock)
+-- deriving instance Generic (GenTx TestBlock)
 
-instance Serialise (GenTx TestBlock)
+-- instance Serialise (GenTx TestBlock)
 
-deriving instance Generic (GenTxId TestBlock)
-instance Serialise (GenTxId TestBlock)
+-- deriving instance Generic (GenTxId TestBlock)
+-- instance Serialise (GenTxId TestBlock)
 
-instance Serialise (SerialisedHeader TestBlock) where
-  encode = encodeTrivialSerialisedHeader
-  decode = decodeTrivialSerialisedHeader
+-- instance Serialise (SerialisedHeader TestBlock) where
+--   encode = encodeTrivialSerialisedHeader
+--   decode = decodeTrivialSerialisedHeader

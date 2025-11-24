@@ -272,10 +272,10 @@ instance SerialiseNodeToClientConstraints TestBlock
 instance CommonProtocolParams TestBlock where
   maxHeaderSize = error "instance CommonProtocolParams TestBlock"
   maxTxSize = error "instance CommonProtocolParams TestBlock"
-instance SupportedNetworkProtocolVersion TestBlock where
-  supportedNodeToNodeVersions _ = foldMap (`Map.singleton` ()) [minBound .. maxBound]
-  supportedNodeToClientVersions _ = foldMap (`Map.singleton` ()) [minBound .. maxBound]
-  latestReleasedNodeVersion = latestReleasedNodeVersionDefault
+-- instance SupportedNetworkProtocolVersion TestBlock where
+--   supportedNodeToNodeVersions _ = foldMap (`Map.singleton` ()) [minBound .. maxBound]
+--   supportedNodeToClientVersions _ = foldMap (`Map.singleton` ()) [minBound .. maxBound]
+--   latestReleasedNodeVersion = latestReleasedNodeVersionDefault
 instance LedgerSupportsMempool TestBlock where
   applyTx = error "instance LedgerSupportsMempool TestBlock"
   reapplyTx = error "instance LedgerSupportsMempool TestBlock"
