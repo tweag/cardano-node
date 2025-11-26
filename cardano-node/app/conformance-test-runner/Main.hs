@@ -18,6 +18,7 @@ import           Test.Consensus.PointSchedule.SinglePeer (SchedulePoint (..),
 import Test.QuickCheck (generate)
 import Test.Consensus.Genesis.Setup.GenChains
 import Test.Consensus.PeerSimulator.NodeLifecycle
+import Test.Consensus.PeerSimulator.StateView
 import Ouroboros.Consensus.MiniProtocol.ChainSync.Client.State
 import Test.Consensus.PeerSimulator.Trace
 import Test.Consensus.PeerSimulator.Run
@@ -171,7 +172,9 @@ runServer = do
     ps
     (psrPeers peerSim)
     lifecycle
-  -- snapshotStateView stateViewTracers chainDb
+  stView <- snapshotStateView stateViewTracers chainDb
+
+  let StateView svSelectedChain _svPeerSimulatorResults svTipBlock _svTrace = stView
 
   putStrLn "took everything"
   threadDelay 60
