@@ -34,10 +34,10 @@ packages:
 
 source-repository-package
     type: git
-    tag: 0ea1567492e6c0643f39d9b5c4de87f1ccb84c10
-    --sha256: sha256-ENBWMe5v1+jlKlUsBRu0w8e0f3LJXT+rwnT1EGO0zTM=
+    tag: 50055322ab7448fa57f8048d6b7cd7b50e6fdb36
+    --sha256: sha256-jf+yzkXsEaNdcwVM2/8b3ozo5OkaJqKqmX6hOzcJ6xo=
     location: https://github.com/tweag/ouroboros-consensus-testing.git
-    subdir: ouroboros-consensus-diffusion
+    subdir: ouroboros-consensus ouroboros-consensus-diffusion
 
 extra-packages: Cabal
 

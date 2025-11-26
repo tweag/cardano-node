@@ -8,7 +8,6 @@
 module Server (run) where
 
 import           Ouroboros.Network.ErrorPolicy (nullErrorPolicies)
-import Ouroboros.Consensus.Node.Serialisation
 import Ouroboros.Consensus.Node.ProtocolInfo (NumCoreNodes (..))
 import Test.Consensus.PeerSimulator.Resources (PeerResources)
 import Control.ResourceRegistry
@@ -20,8 +19,6 @@ import MiniProtocols (peerSimServer)
 import qualified Network.Mux as Mux
 import Network.Socket (SockAddr (..))
 import Ouroboros.Consensus.Config.SupportsNode
-import Ouroboros.Consensus.Mock.Ledger
-import Ouroboros.Consensus.Mock.Node ()
 import Ouroboros.Consensus.Node.NetworkProtocolVersion
 import Ouroboros.Consensus.Node.Run (SerialiseNodeToNodeConstraints)
 import Orphans ()
@@ -33,10 +30,8 @@ import Ouroboros.Network.PeerSelection.PeerSharing.Codec
   ( decodeRemoteAddress
   , encodeRemoteAddress
   )
-import Ouroboros.Network.Protocol.Handshake (HandshakeArguments (..))
-import qualified Ouroboros.Network.Protocol.Handshake as Handshake
 import qualified Ouroboros.Network.Snocket as Snocket
-import Ouroboros.Network.Socket (SomeResponderApplication (..), configureSocket)
+import Ouroboros.Network.Socket (configureSocket)
 import Test.Util.TestBlock (TestBlock)
 import qualified Test.Util.TestBlock as TB
 

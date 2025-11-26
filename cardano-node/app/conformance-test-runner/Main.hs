@@ -6,12 +6,27 @@
 
 module Main (main) where
 
+import Ouroboros.Consensus.Storage.ChainDB.API
+import           Test.Consensus.BlockTree (BlockTree (..), BlockTreeBranch (..), prettyBlockTree)
+import           Ouroboros.Network.AnchoredFragment (AnchoredFragment,
+                     toOldestFirst)
+import qualified Ouroboros.Network.AnchoredFragment as AF
+import           Test.Consensus.PointSchedule
+import           Test.Consensus.PointSchedule.Peers (peersOnlyHonest)
+import           Test.Consensus.PointSchedule.SinglePeer (SchedulePoint (..),
+                     scheduleBlockPoint, scheduleHeaderPoint, scheduleTipPoint)
+import Test.QuickCheck (generate)
+import Test.Consensus.Genesis.Setup.GenChains
+import Test.Consensus.PeerSimulator.NodeLifecycle
+import Ouroboros.Consensus.MiniProtocol.ChainSync.Client.State
+import Test.Consensus.PeerSimulator.Trace
+import Test.Consensus.PeerSimulator.Run
 import Control.Monad (unless)
 import qualified Data.Map.Merge.Lazy as M
 import Test.Consensus.PeerSimulator.Resources (PeerSimulatorResources(..), makePeerSimulatorResources)
-import Control.Tracer (nullTracer)
+import Control.Tracer (nullTracer, traceWith, Tracer(..))
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.Aeson (encode, throwDecode, Value, object, (.=))
+import Data.Aeson (encode, encodeFile, throwDecode, Value, object, (.=))
 import qualified Data.ByteString.Lazy.Char8 as BSL8
 import Data.Coerce
 import Data.Foldable
@@ -39,16 +54,18 @@ import Test.Consensus.PointSchedule (PointSchedule (..))
 import Test.Consensus.PointSchedule.Peers (PeerId (..), Peers (Peers), getPeerIds)
 import Ouroboros.Network.NodeToNode (PeerAdvertise (..))
 import Ouroboros.Network.PeerSelection.RelayAccessPoint (PortNumber)
+import Cardano.Node.Run ()
 
 testPointSchedule :: PointSchedule blk
 testPointSchedule =
   PointSchedule
     { psSchedule =
         Peers
-          (M.fromList [(1, undefined), (2, undefined)])
           (M.fromList [(1, undefined)])
+          mempty
+          -- (M.fromList [(1, undefined)])
     , psStartOrder = []
-    , psMinEndTime = undefined
+    , psMinEndTime = error "min end time"
     }
 
 buildPeerMap :: PortNumber -> PointSchedule blk -> Map PeerId PortNumber
@@ -70,7 +87,7 @@ makeTopology ports = object
       ]
   , "useLedgerAfterSlot" .= id @Int (-1)
   , "publicRoots" .= id @[()] []
-  , "bootstrapPeers" .= id @[()] []
+  , "bootstrapPeers" .= Nothing @String
   ]
   -- NetworkTopology
   --   { localRootPeersGroups =
@@ -97,21 +114,30 @@ makeTopology ports = object
 
 main :: IO ()
 main = do
-  args <- getArgs
-  opts <- parseOptions args
-  contents <- BSL8.readFile (optTestFile opts)
-  pointSchedule <- throwDecode contents :: IO (PointSchedule Bool)
-  let simPeerMap = buildPeerMap (optPort opts) pointSchedule
-  BSL8.writeFile (optOutputTopologyFile opts) (encode $ makeTopology simPeerMap)
+  runServer
+  -- args <- getArgs
+  -- opts <- parseOptions args
+  -- contents <- BSL8.readFile (optTestFile opts)
+  -- pointSchedule <- throwDecode contents :: IO (PointSchedule Bool)
+  -- let simPeerMap = buildPeerMap (optPort opts) pointSchedule
+  -- BSL8.writeFile (optOutputTopologyFile opts) (encode $ makeTopology simPeerMap)
 
 zipMaps :: Ord k => Map k a -> Map k b -> Map k (a, b)
 zipMaps = M.merge M.dropMissing M.dropMissing $ M.zipWithMatched $ const (,)
 
 runServer :: IO ()
 runServer = do
-  let peerMap = buildPeerMap 6001 testPointSchedule
+  gt <- generate $ genChains $ pure 1
+  let chain = gt {gtSchedule = rollbackSchedule 1 $ gtBlockTree gt}
+      ps = gtSchedule chain
 
-  peerSim <- makePeerSimulatorResources nullTracer undefined $ NonEmpty.fromList $ M.keys peerMap
+  Prelude.putStrLn $ unlines $ prettyBlockTree $ gtBlockTree chain
+  encodeFile "/tmp/topology.file" $ makeTopology $ buildPeerMap 6000 ps
+
+
+  let peerMap = buildPeerMap 6000 ps
+
+  peerSim <- makePeerSimulatorResources nullTracer (gtBlockTree chain) $ NonEmpty.fromList $ M.keys peerMap
 
   incomingTMV <- newEmptyTMVarIO
 
@@ -137,8 +163,47 @@ runServer = do
       unless (csChan && bfChan) retry
       pure (csChan, bfChan)
 
-  for_ peerServers $ uninterruptibleCancel . snd
+  let lifecycle = NodeLifecycle (Just 1000000) (\lir -> pure $ LiveNode { lnChainDb = ChainDB { getCurrentChain = pure $ AF.Empty AF.AnchorGenesis }, lnStateTracer = nullTracer }) (\ln -> pure (LiveIntervalResult {}))
+
+  (chainDb, stateViewTracers) <- runScheduler
+    (Tracer $ traceWith nullTracer . TraceSchedulerEvent)
+    (cschcMap (psrHandles peerSim))
+    ps
+    (psrPeers peerSim)
+    lifecycle
+  -- snapshotStateView stateViewTracers chainDb
 
   putStrLn "took everything"
+  threadDelay 60
+
+  for_ peerServers $ uninterruptibleCancel . snd
 
   pure ()
+
+
+-- | A schedule that advertises all the points of the trunk up until the nth
+-- block after the intersection, then switches to the first alternative
+-- chain of the given block tree.
+--
+-- PRECONDITION: Block tree with at least one alternative chain.
+rollbackSchedule :: AF.HasHeader blk => Int -> BlockTree blk -> PointSchedule blk
+rollbackSchedule n blockTree =
+    let branch = case btBranches blockTree of
+          [b] -> b
+          _   -> error "The block tree must have exactly one alternative branch"
+        trunkSuffix = AF.takeOldest n (btbTrunkSuffix branch)
+        schedulePoints = concat
+          [ banalSchedulePoints (btbPrefix branch)
+          , banalSchedulePoints trunkSuffix
+          , banalSchedulePoints (btbSuffix branch)
+          ]
+    in PointSchedule {
+         psSchedule = peersOnlyHonest $ zip (map (Time . (/30)) [0..]) schedulePoints,
+         psStartOrder = [],
+         psMinEndTime = Time 0
+       }
+  where
+    banalSchedulePoints :: AnchoredFragment blk -> [SchedulePoint blk]
+    banalSchedulePoints = concatMap banalSchedulePoints' . toOldestFirst
+    banalSchedulePoints' :: blk -> [SchedulePoint blk]
+    banalSchedulePoints' block = [scheduleTipPoint block, scheduleHeaderPoint block, scheduleBlockPoint block]
