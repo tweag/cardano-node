@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 module Main (main) where
 
@@ -17,6 +18,7 @@ import           Test.Consensus.PointSchedule.SinglePeer (SchedulePoint (..),
                      scheduleBlockPoint, scheduleHeaderPoint, scheduleTipPoint)
 import Test.QuickCheck (generate)
 import Test.Consensus.Genesis.Setup.GenChains
+import Test.Consensus.PeerSimulator.Config
 import Test.Consensus.PeerSimulator.NodeLifecycle
 import Test.Consensus.PeerSimulator.StateView
 import Ouroboros.Consensus.MiniProtocol.ChainSync.Client.State
@@ -56,6 +58,11 @@ import Test.Consensus.PointSchedule.Peers (PeerId (..), Peers (Peers), getPeerId
 import Ouroboros.Network.NodeToNode (PeerAdvertise (..))
 import Ouroboros.Network.PeerSelection.RelayAccessPoint (PortNumber)
 import Cardano.Node.Run ()
+import Test.Util.ChainDB
+import Test.Util.TestBlock (TestBlock)
+import Unsafe.Coerce (unsafeCoerce)
+import qualified Data.Set as S
+import Control.ResourceRegistry (withRegistry)
 
 testPointSchedule :: PointSchedule blk
 testPointSchedule =
@@ -164,15 +171,71 @@ runServer = do
       unless (csChan && bfChan) retry
       pure (csChan, bfChan)
 
-  let lifecycle = NodeLifecycle (Just 1000000) (\lir -> pure $ LiveNode { lnChainDb = ChainDB { getCurrentChain = pure $ AF.Empty AF.AnchorGenesis }, lnStateTracer = nullTracer }) (\ln -> pure (LiveIntervalResult {}))
+  
+  let schedulerConfig = defaultSchedulerConfig
+        { scTrace = False
+          -- | The minimum tick duration that triggers a node downtime.
+          -- If this is 'Nothing' (default), downtimes are disabled.
+        , scDowntime = Just 1000000
+        }
 
-  (chainDb, stateViewTracers) <- runScheduler
-    (Tracer $ traceWith nullTracer . TraceSchedulerEvent)
-    (cschcMap (psrHandles peerSim))
-    ps
-    (psrPeers peerSim)
-    lifecycle
-  stView <- snapshotStateView stateViewTracers chainDb
+{-
+  -- option 1: use the already exposed 'lifecycleStart' and 'lifecyclestop'
+  -- to build the NodeLifeCycle. Then unwrap the relevant 'startNode' logic.
+
+  lrCdb <- emptyNodeDBs
+
+      GenesisTest {
+        gtSecurityParam = k
+      , gtForecastRange
+      , gtGenesisWindow
+      } = chain
+  
+      resources =
+        LiveResources
+          { lrRegistry = error "lrRegistry"
+          , lrTracer = nullTracer
+          , lrSTracer = const nullTracer {-mkStateTracer schedulerConfig genesisTest lrPeerSim-}
+          , lrConfig = defaultCfg k gtForecastRange gtGenesisWindow
+          , lrPeerSim = peerSim
+          , lrCdb
+          , lrLoEVar = LoEDisabled
+          }
+
+      lifecycle =
+        NodeLifecycle
+          { -- | The minimum tick duration that triggers a node downtime.
+            -- If this is 'Nothing', downtimes are disabled.
+           nlMinDuration = scDowntime schedulerConfig
+          , nlStart = lifecycleStart (startNode schedulerConfig chain) resources
+          , nlShutdown = lifecycleStop resources
+          }
+
+  -- option 2: build the NodeLifeCycle explicitly
+  let lifecycle = NodeLifecycle
+        { nlMinDuration = scDowntime schedulerConfig
+        , nlStart = \lir -> pure $ LiveNode
+                                     { lnChainDb = mkChainDB-- ChainDB { getCurrentChain = pure $ AF.Empty AF.AnchorGenesis }
+                                     , lnStateTracer = nullTracer
+                                     , lnStateViewTracers -- :: StateViewTracers blk m
+                                     , lnCopyToImmDb      -- :: m (WithOrigin SlotNo)
+                                     , lnPeers = S.fromList . M.keys $ psrPeers peerSim
+                                     }
+        , nlShutdown = \ln -> pure (LiveIntervalResult {})
+        }
+
+-}
+
+  stView <- withRegistry $ \registry -> do
+    lifecycle <- nodeLifecycle schedulerConfig chain nullTracer registry peerSim
+    
+    (chainDb, stateViewTracers) <- runScheduler
+      (Tracer $ traceWith nullTracer . TraceSchedulerEvent)
+      (cschcMap (psrHandles peerSim))
+      ps
+      (psrPeers peerSim)
+      lifecycle
+    snapshotStateView stateViewTracers chainDb
 
   let StateView svSelectedChain _svPeerSimulatorResults svTipBlock _svTrace = stView
 
