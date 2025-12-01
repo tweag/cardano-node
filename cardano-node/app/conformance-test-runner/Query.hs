@@ -56,7 +56,7 @@ connectToLocalNode' LocalNodeConnectInfo
     , localNodeNetworkId
     , localConsensusModeParams
     }
-  clients =
+  clients = let tbcg = TB.TestBlockConfig $ NumCoreNodes 0 in
     Net.withIOManager $ \iomgr -> do
       r <-
         Net.connectTo
@@ -65,7 +65,7 @@ connectToLocalNode' LocalNodeConnectInfo
             { Net.nctMuxTracer = nullTracer
             , Net.nctHandshakeTracer = nullTracer
             }
-          (queryClient (Proxy @TestBlock) undefined (getNetworkMagic @TestBlock $ TB.TestBlockConfig $ NumCoreNodes 0 ))
+          (queryClient (Proxy @TestBlock) TB.TestBlockCodecConfig (getNetworkMagic tbcg))
           (unFile localNodeSocketPath)
       case r of
         Left e -> throwIO e

@@ -314,6 +314,7 @@ executable conformance-test-runner
     base,
     containers,
     optparse-applicative,
+    cardano-api,
     ouroboros-network:{ouroboros-network},
     ouroboros-consensus:{ouroboros-consensus, unstable-mock-block, unstable-consensus-testlib},
     ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib,

@@ -21,6 +21,7 @@ module MiniProtocols (peerSimServer, queryClient) where
 import           Ouroboros.Consensus.Block
 import qualified Ouroboros.Consensus.Block as Consensus
 import qualified Ouroboros.Consensus.Ledger.Query as Consensus
+import           Ouroboros.Consensus.Ledger.SupportsMempool
 import qualified Ouroboros.Consensus.Network.NodeToClient as Consensus
 import qualified Ouroboros.Consensus.Network.NodeToClient as Consensus.N2C
 import           Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
@@ -50,6 +51,7 @@ import           Ouroboros.Network.Protocol.ChainSync.Server
 import           Ouroboros.Network.Protocol.ChainSync.Type
 import           Ouroboros.Network.Protocol.Handshake.Version (Version (..))
 import           Ouroboros.Network.Protocol.KeepAlive.Server (keepAliveServerPeer)
+import qualified Ouroboros.Network.Protocol.LocalStateQuery.Type as Net.Query
 import           Ouroboros.Network.Util.ShowProxy (ShowProxy)
 
 import qualified Codec.CBOR.Decoding as CBOR
@@ -78,6 +80,12 @@ queryClient
                  , MonadThrow m
                  , ShowProxy blk
                  , MonadDelay m
+                 , ShowProxy (GenTx blk)
+                 , ShowProxy (ApplyTxErr blk)
+                 , ShowProxy (TxId (GenTx blk))
+                 , MonadAsync m
+                 , MonadMask m
+                 , ShowProxy (Consensus.BlockQuery blk)
      )
   => Proxy blk
   -> CodecConfig blk
@@ -106,6 +114,12 @@ protocols
                  , MonadThrow m
                  , ShowProxy blk
                  , MonadDelay m
+                 , ShowProxy (GenTx blk)
+                 , ShowProxy (ApplyTxErr blk)
+                 , ShowProxy (TxId (GenTx blk))
+                 , MonadAsync m
+                 , MonadMask m
+                 , ShowProxy (Consensus.BlockQuery blk)
   )
   => CodecConfig blk
   -> BlockNodeToClientVersion blk
@@ -114,6 +128,9 @@ protocols
 protocols codecCfg blockVersion version = do
     let Consensus.N2C.Codecs
           { cChainSyncCodec
+          , cTxMonitorCodec
+          , cStateQueryCodec
+          , cTxSubmissionCodec
           } =
             Consensus.N2C.defaultCodecs codecCfg blockVersion version
 
@@ -125,9 +142,29 @@ protocols codecCfg blockVersion version = do
             , cChainSyncCodec
             , chainSyncPeerNull
             )
-      , localTxSubmissionProtocol = undefined -- localTxSubmissionPeerNull
-      , localStateQueryProtocol   = undefined -- localStateQueryPeerNull
-      , localTxMonitorProtocol    = undefined -- localTxMonitorPeerNull
+      , localTxSubmissionProtocol =
+          InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ const
+            ( nullTracer
+            , cTxSubmissionCodec
+            , localTxSubmissionPeerNull
+            )
+      , localStateQueryProtocol   =
+            InitiatorProtocolOnly $
+              mkMiniProtocolCbFromPeerSt $
+                const
+                  ( nullTracer
+                  , cStateQueryCodec
+                  , Net.Query.StateIdle
+                  , localStateQueryPeerNull
+                  )
+      , localTxMonitorProtocol    =
+            InitiatorProtocolOnly $
+              mkMiniProtocolCbFromPeer $
+                const
+                  ( nullTracer
+                  , cTxMonitorCodec
+                  , localTxMonitorPeerNull
+                  )
       }
 
 peerSimServer ::
