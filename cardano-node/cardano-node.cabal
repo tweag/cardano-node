@@ -309,6 +309,7 @@ executable conformance-test-runner
     Orphans
     Server
     MiniProtocols
+    Query
   build-depends:
     base,
     containers,
@@ -331,4 +332,5 @@ executable conformance-test-runner
     io-classes,
     cardano-node,
     QuickCheck,
+    cardano-api,
 

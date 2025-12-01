@@ -51,6 +51,7 @@ import           Test.Consensus.PointSchedule.SinglePeer (SchedulePoint (..), sc
                    scheduleHeaderPoint, scheduleTipPoint)
 import           Test.QuickCheck (generate)
 
+import           Query
 import           Server (run)
 
 testPointSchedule :: PointSchedule blk

@@ -7,7 +7,7 @@
 
 module Server (run) where
 
-import           Ouroboros.Consensus.Config.SupportsNode
+import           Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode, getNetworkMagic)
 import           Ouroboros.Consensus.Node.NetworkProtocolVersion
 import           Ouroboros.Consensus.Node.ProtocolInfo (NumCoreNodes (..))
 import           Ouroboros.Consensus.Node.Run (SerialiseNodeToNodeConstraints)
