@@ -75,14 +75,8 @@ connectToLocalNode' LocalNodeConnectInfo
 chainSyncGetCurrentTip
   :: StrictTMVar IO ChainTip
   -> ChainSyncClient TestBlock ChainPoint ChainTip IO ()
-chainSyncGetCurrentTip tipVar = ChainSyncClient $ pure clientStIdle
- where
-  clientStIdle :: Net.Sync.ClientStIdle TestBlock ChainPoint ChainTip IO ()
-  clientStIdle =
-    Net.Sync.SendMsgRequestNext (pure ()) clientStNext
-
-  clientStNext :: Net.Sync.ClientStNext TestBlock ChainPoint ChainTip IO ()
-  clientStNext =
+chainSyncGetCurrentTip tipVar = ChainSyncClient $ pure $
+  Net.Sync.SendMsgRequestNext (pure ()) $
     Net.Sync.ClientStNext
       { Net.Sync.recvMsgRollForward = \_block tip -> ChainSyncClient $ do
           void $ atomically $ tryPutTMVar tipVar tip

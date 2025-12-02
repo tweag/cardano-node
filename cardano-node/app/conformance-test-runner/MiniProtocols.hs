@@ -18,6 +18,9 @@
 -- picked up by the peer simulator.
 module MiniProtocols (peerSimServer, queryClient) where
 
+import           Cardano.Api.Internal.Block
+import           Cardano.Api.Internal.IPC (ChainSyncClient (..))
+
 import           Ouroboros.Consensus.Block
 import qualified Ouroboros.Consensus.Block as Consensus
 import qualified Ouroboros.Consensus.Ledger.Query as Consensus
@@ -47,6 +50,7 @@ import           Ouroboros.Network.NodeToNode (NodeToNodeVersionData (..), Versi
 import qualified Ouroboros.Network.NodeToNode as N2N
 import           Ouroboros.Network.PeerSelection.PeerSharing (PeerSharing (..))
 import           Ouroboros.Network.Protocol.BlockFetch.Server
+import qualified Ouroboros.Network.Protocol.ChainSync.Client as Net.Sync
 import           Ouroboros.Network.Protocol.ChainSync.Server
 import           Ouroboros.Network.Protocol.ChainSync.Type
 import           Ouroboros.Network.Protocol.Handshake.Version (Version (..))
@@ -57,7 +61,7 @@ import           Ouroboros.Network.Util.ShowProxy (ShowProxy)
 import qualified Codec.CBOR.Decoding as CBOR
 import qualified Codec.CBOR.Encoding as CBOR
 import           Codec.Serialise (Serialise)
-import           Control.Monad (forever)
+import           Control.Monad (forever, void)
 import           Control.Monad.Class.MonadSay
 import           Control.Tracer
 import qualified Data.ByteString.Lazy as BL
@@ -68,6 +72,7 @@ import qualified Network.Mux as Mux
 
 import           Test.Consensus.PeerSimulator.Resources (BlockFetchResources (..),
                    ChainSyncResources (..), PeerResources (..))
+import           Test.Util.TestBlock (TestBlock)
 
 queryClient
   :: ( SupportedNetworkProtocolVersion blk
@@ -141,6 +146,7 @@ protocols codecCfg blockVersion version = do
             ( nullTracer
             , cChainSyncCodec
             , chainSyncPeerNull
+            -- , undefined -- LocalStateQuery.localStateQueryClientPeer $ chainSyncGetCurrentTip undefined
             )
       , localTxSubmissionProtocol =
           InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ const
@@ -287,3 +293,17 @@ forallVersionsN2C blk networkMagic mkR =
         { versionApplication = const $ mkR version blockVersion
         , versionData = stdVersionDataNTC networkMagic
         }
+
+chainSyncGetCurrentTip
+  :: StrictTMVar IO ChainTip
+  -> ChainSyncClient TestBlock ChainPoint ChainTip IO ()
+chainSyncGetCurrentTip tipVar = ChainSyncClient $ pure $
+  Net.Sync.SendMsgRequestNext (pure ()) $
+    Net.Sync.ClientStNext
+      { Net.Sync.recvMsgRollForward = \_block tip -> ChainSyncClient $ do
+          void $ atomically $ tryPutTMVar tipVar tip
+          pure $ Net.Sync.SendMsgDone ()
+      , Net.Sync.recvMsgRollBackward = \_point tip -> ChainSyncClient $ do
+          void $ atomically $ tryPutTMVar tipVar tip
+          pure $ Net.Sync.SendMsgDone ()
+      }
