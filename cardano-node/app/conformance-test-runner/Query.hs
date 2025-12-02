@@ -1,3 +1,4 @@
+{-# LANGUAGE EmptyCase #-}
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TypeApplications #-}
@@ -14,7 +15,10 @@ import           Cardano.Api.Internal.IPC (ChainSyncClient (..), EpochSlots (..)
                    LocalNodeClientProtocols (..), LocalNodeConnectInfo (..), connectToLocalNode)
 
 import           Cardano.Node.Run ()
+import           Ouroboros.Consensus.Block
 import           Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
+import qualified Ouroboros.Consensus.Ledger.Query as Consensus
+import           Ouroboros.Consensus.Ledger.SupportsMempool
 import           Ouroboros.Consensus.Node.ProtocolInfo (NumCoreNodes (..))
 import           Ouroboros.Consensus.Util.IOLike
 import qualified Ouroboros.Network.Block as Net
@@ -36,7 +40,7 @@ import           MiniProtocols (queryClient)
 
 getLocalChainTip
   :: LocalNodeConnectInfo
-  -> IO ChainTip
+  -> IO (Net.Tip TestBlock)
 getLocalChainTip localNodeConInfo = do
   resultVar <- newEmptyTMVarIO
   connectToLocalNode'
@@ -50,7 +54,11 @@ getLocalChainTip localNodeConInfo = do
   atomically $ takeTMVar resultVar
 
 
-connectToLocalNode' :: LocalNodeConnectInfo -> LocalNodeClientProtocols blk a b c d e f g IO -> IO ()
+connectToLocalNode'
+  :: (blk ~ TestBlock)
+  => LocalNodeConnectInfo
+  -> LocalNodeClientProtocols blk (Point blk) (Net.Tip blk) SlotNo (GenTx blk) (GenTxId blk) (ApplyTxErr blk) (Consensus.Query blk) IO
+  -> IO ()
 connectToLocalNode' LocalNodeConnectInfo
     { localNodeSocketPath
     , localNodeNetworkId
@@ -65,7 +73,7 @@ connectToLocalNode' LocalNodeConnectInfo
             { Net.nctMuxTracer = nullTracer
             , Net.nctHandshakeTracer = nullTracer
             }
-          (queryClient (Proxy @TestBlock) TB.TestBlockCodecConfig (getNetworkMagic tbcg))
+          (queryClient (Proxy @TestBlock) TB.TestBlockCodecConfig clients (getNetworkMagic tbcg))
           (unFile localNodeSocketPath)
       case r of
         Left e -> throwIO e
@@ -73,8 +81,8 @@ connectToLocalNode' LocalNodeConnectInfo
 
 
 chainSyncGetCurrentTip
-  :: StrictTMVar IO ChainTip
-  -> ChainSyncClient TestBlock ChainPoint ChainTip IO ()
+  :: StrictTMVar IO (Net.Tip TestBlock)
+  -> ChainSyncClient TestBlock (Point TestBlock) (Net.Tip TestBlock) IO ()
 chainSyncGetCurrentTip tipVar = ChainSyncClient $ pure $
   Net.Sync.SendMsgRequestNext (pure ()) $
     Net.Sync.ClientStNext

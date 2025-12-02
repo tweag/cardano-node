@@ -4,6 +4,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE EmptyCase #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE LambdaCase #-}
@@ -19,7 +20,8 @@
 module MiniProtocols (peerSimServer, queryClient) where
 
 import           Cardano.Api.Internal.Block
-import           Cardano.Api.Internal.IPC (ChainSyncClient (..))
+import           Cardano.Api.Internal.IPC (ChainSyncClient (..), LocalChainSyncClient (..),
+                   LocalNodeClientProtocols (..))
 
 import           Ouroboros.Consensus.Block
 import qualified Ouroboros.Consensus.Block as Consensus
@@ -36,12 +38,14 @@ import qualified Ouroboros.Consensus.Node.ProtocolInfo as Consensus
 import           Ouroboros.Consensus.Node.Run (SerialiseNodeToClientConstraints,
                    SerialiseNodeToNodeConstraints)
 import           Ouroboros.Consensus.Util.IOLike
+import           Ouroboros.Network.Block
 import           Ouroboros.Network.Driver (runPeer)
 import           Ouroboros.Network.KeepAlive (keepAliveServer)
 import           Ouroboros.Network.Magic (NetworkMagic)
 import           Ouroboros.Network.Mux (MiniProtocol (..), MiniProtocolCb (..),
                    OuroborosApplication (..), OuroborosApplicationWithMinimalCtx,
-                   RunMiniProtocol (..), mkMiniProtocolCbFromPeer, mkMiniProtocolCbFromPeerSt)
+                   RunMiniProtocol (..), mkMiniProtocolCbFromPeer,
+                   mkMiniProtocolCbFromPeerPipelined, mkMiniProtocolCbFromPeerSt)
 import           Ouroboros.Network.NodeToClient (NodeToClientProtocols (..),
                    NodeToClientVersionData (..), chainSyncPeerNull, localStateQueryPeerNull,
                    localTxMonitorPeerNull, localTxSubmissionPeerNull, nodeToClientProtocols)
@@ -51,11 +55,15 @@ import qualified Ouroboros.Network.NodeToNode as N2N
 import           Ouroboros.Network.PeerSelection.PeerSharing (PeerSharing (..))
 import           Ouroboros.Network.Protocol.BlockFetch.Server
 import qualified Ouroboros.Network.Protocol.ChainSync.Client as Net.Sync
+import           Ouroboros.Network.Protocol.ChainSync.ClientPipelined as Net.SyncP
 import           Ouroboros.Network.Protocol.ChainSync.Server
 import           Ouroboros.Network.Protocol.ChainSync.Type
 import           Ouroboros.Network.Protocol.Handshake.Version (Version (..))
 import           Ouroboros.Network.Protocol.KeepAlive.Server (keepAliveServerPeer)
+import qualified Ouroboros.Network.Protocol.LocalStateQuery.Client as Net.Query
 import qualified Ouroboros.Network.Protocol.LocalStateQuery.Type as Net.Query
+import           Ouroboros.Network.Protocol.LocalTxMonitor.Client (localTxMonitorClientPeer)
+import qualified Ouroboros.Network.Protocol.LocalTxSubmission.Client as Net.Tx
 import           Ouroboros.Network.Util.ShowProxy (ShowProxy)
 
 import qualified Codec.CBOR.Decoding as CBOR
@@ -79,29 +87,29 @@ queryClient
      , Consensus.BlockSupportsLedgerQuery blk
   , SerialiseNodeToClientConstraints blk
      , MonadST m
-                 , StandardHash blk
-                 , Serialise (HeaderHash blk)
-                 , Show (BlockNodeToClientVersion blk)
-                 , MonadThrow m
-                 , ShowProxy blk
-                 , MonadDelay m
-                 , ShowProxy (GenTx blk)
-                 , ShowProxy (ApplyTxErr blk)
-                 , ShowProxy (TxId (GenTx blk))
-                 , MonadAsync m
-                 , MonadMask m
-                 , ShowProxy (Consensus.BlockQuery blk)
+     , StandardHash blk
+     , Serialise (HeaderHash blk)
+     , Show (BlockNodeToClientVersion blk)
+     , ShowProxy blk
+     , MonadDelay m
+     , ShowProxy (GenTx blk)
+     , ShowProxy (ApplyTxErr blk)
+     , ShowProxy (TxId (GenTx blk))
+     , MonadAsync m
+     , MonadMask m
+     , ShowProxy (Consensus.BlockQuery blk)
      )
   => Proxy blk
   -> CodecConfig blk
+  -> LocalNodeClientProtocols blk (Point blk) (Tip blk) SlotNo (GenTx blk) (GenTxId blk) (ApplyTxErr blk) (Consensus.Query blk) m
   -> NetworkMagic
   -> Versions
     NodeToClientVersion
     NodeToClientVersionData
     (OuroborosApplicationWithMinimalCtx 'Mux.InitiatorMode addr BL.ByteString m () Void)
-queryClient blk codecCfg networkMagic =
+queryClient blk codecCfg clients networkMagic =
   forallVersionsN2C blk networkMagic $ \version blockVersion -> do
-    nodeToClientProtocols (protocols codecCfg blockVersion version) version $
+    nodeToClientProtocols (protocols codecCfg clients blockVersion version) version $
       NodeToClientVersionData
         { networkMagic = networkMagic
         , query = True
@@ -110,49 +118,56 @@ queryClient blk codecCfg networkMagic =
 
 protocols
   :: ( Consensus.BlockSupportsLedgerQuery blk
-  , MonadST m
-  , SerialiseNodeToClientConstraints blk
-
-                 , StandardHash blk
-                 , Serialise (HeaderHash blk)
-                 , Show (BlockNodeToClientVersion blk)
-                 , MonadThrow m
-                 , ShowProxy blk
-                 , MonadDelay m
-                 , ShowProxy (GenTx blk)
-                 , ShowProxy (ApplyTxErr blk)
-                 , ShowProxy (TxId (GenTx blk))
-                 , MonadAsync m
-                 , MonadMask m
-                 , ShowProxy (Consensus.BlockQuery blk)
-  )
+     , MonadST m
+     , SerialiseNodeToClientConstraints blk
+     , StandardHash blk
+     , Serialise (HeaderHash blk)
+     , Show (BlockNodeToClientVersion blk)
+     , ShowProxy blk
+     , MonadDelay m
+     , ShowProxy (GenTx blk)
+     , ShowProxy (ApplyTxErr blk)
+     , ShowProxy (TxId (GenTx blk))
+     , MonadAsync m
+     , MonadMask m
+     , ShowProxy (Consensus.BlockQuery blk)
+     )
   => CodecConfig blk
+  -> LocalNodeClientProtocols blk (Point blk) (Tip blk) SlotNo (GenTx blk) (GenTxId blk) (ApplyTxErr blk) (Consensus.Query blk) m
   -> BlockNodeToClientVersion blk
   -> NodeToClientVersion
   -> NodeToClientProtocols Mux.InitiatorMode addr BL.ByteString m () Void
-protocols codecCfg blockVersion version = do
+protocols codecCfg clients blockVersion version = do
     let Consensus.N2C.Codecs
           { cChainSyncCodec
           , cTxMonitorCodec
           , cStateQueryCodec
           , cTxSubmissionCodec
           } =
-            Consensus.N2C.defaultCodecs codecCfg blockVersion version
+            Consensus.N2C.clientCodecs codecCfg blockVersion version
 
 
     NodeToClientProtocols
       { localChainSyncProtocol    =
-          InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ const
-            ( nullTracer
-            , cChainSyncCodec
-            , chainSyncPeerNull
-            -- , undefined -- LocalStateQuery.localStateQueryClientPeer $ chainSyncGetCurrentTip undefined
-            )
+          InitiatorProtocolOnly $
+            case localChainSyncClient clients of
+              NoLocalChainSyncClient ->
+                mkMiniProtocolCbFromPeer $
+                  const
+                    (nullTracer, cChainSyncCodec, chainSyncPeerNull)
+              LocalChainSyncClient client ->
+                mkMiniProtocolCbFromPeer $
+                  const
+                    (nullTracer, cChainSyncCodec, Net.Sync.chainSyncClientPeer client)
+              LocalChainSyncClientPipelined clientPipelined ->
+                mkMiniProtocolCbFromPeerPipelined $
+                  const
+                    (nullTracer, cChainSyncCodec, Net.SyncP.chainSyncClientPeerPipelined clientPipelined)
       , localTxSubmissionProtocol =
           InitiatorProtocolOnly $ mkMiniProtocolCbFromPeer $ const
             ( nullTracer
             , cTxSubmissionCodec
-            , localTxSubmissionPeerNull
+            , maybe localTxSubmissionPeerNull Net.Tx.localTxSubmissionClientPeer $ localTxSubmissionClient clients
             )
       , localStateQueryProtocol   =
             InitiatorProtocolOnly $
@@ -161,7 +176,10 @@ protocols codecCfg blockVersion version = do
                   ( nullTracer
                   , cStateQueryCodec
                   , Net.Query.StateIdle
-                  , localStateQueryPeerNull
+                  , maybe localStateQueryPeerNull
+
+                      Net.Query.localStateQueryClientPeer $
+                        localStateQueryClient clients
                   )
       , localTxMonitorProtocol    =
             InitiatorProtocolOnly $
@@ -169,7 +187,9 @@ protocols codecCfg blockVersion version = do
                 const
                   ( nullTracer
                   , cTxMonitorCodec
-                  , localTxMonitorPeerNull
+                  , maybe localTxMonitorPeerNull
+                      localTxMonitorClientPeer
+                      $ localTxMonitoringClient clients
                   )
       }
 
@@ -293,17 +313,3 @@ forallVersionsN2C blk networkMagic mkR =
         { versionApplication = const $ mkR version blockVersion
         , versionData = stdVersionDataNTC networkMagic
         }
-
-chainSyncGetCurrentTip
-  :: StrictTMVar IO ChainTip
-  -> ChainSyncClient TestBlock ChainPoint ChainTip IO ()
-chainSyncGetCurrentTip tipVar = ChainSyncClient $ pure $
-  Net.Sync.SendMsgRequestNext (pure ()) $
-    Net.Sync.ClientStNext
-      { Net.Sync.recvMsgRollForward = \_block tip -> ChainSyncClient $ do
-          void $ atomically $ tryPutTMVar tipVar tip
-          pure $ Net.Sync.SendMsgDone ()
-      , Net.Sync.recvMsgRollBackward = \_point tip -> ChainSyncClient $ do
-          void $ atomically $ tryPutTMVar tipVar tip
-          pure $ Net.Sync.SendMsgDone ()
-      }

@@ -34,7 +34,6 @@ import qualified Test.Util.TestBlock as TB
 import           Test.Util.TestBlock (TestBlock)
 
 import           MiniProtocols (peerSimServer)
-import           Orphans ()
 
 -- | Glue code for using just the bits from the Diffusion Layer that we need in
 -- this context.
