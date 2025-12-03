@@ -24,7 +24,7 @@ import           Data.Foldable (toList)
 import           Data.Maybe (listToMaybe)
 import           Data.Sequence (Seq (..), fromList)
 
-import           Test.QuickCheck (Arbitrary (shrink))
+import           Test.QuickCheck (Arbitrary (..), frequency)
 
 -- | Each index represents a unique path along a 'ShrinkTree'. The monoidal
 -- operation corresponds to extending by the corresponding tree path, and the
@@ -34,7 +34,18 @@ newtype ShrinkIndex = Ix {getIndex :: Seq Int} deriving (Eq, Semigroup, Monoid)
 instance Show ShrinkIndex where
   show (Ix s) = "path " <> show (toList s)
 
+instance Arbitrary ShrinkIndex where
+  arbitrary = frequency [(4, child <$> arbitrary), (1, pure mempty)]
+  shrink (Ix s) = Ix <$> shrink s
+
 data ShrinkTree a = Node a [ShrinkTree a] deriving stock (Eq, Show, Functor, Foldable, Traversable)
+
+instance (Arbitrary a) => Arbitrary (ShrinkTree a) where
+  arbitrary = fmap arbitraryShrinkTree arbitrary
+
+  -- Note that a 'ShrinkTree' shrinks to its node children, i.e.
+  -- @shrink tree = branches tree@
+  shrink = fmap arbitraryShrinkTree . shrink . node
 
 path :: [Int] -> ShrinkIndex
 path = foldMap child
