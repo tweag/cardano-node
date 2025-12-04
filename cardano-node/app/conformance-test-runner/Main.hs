@@ -1,60 +1,57 @@
-{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE TypeApplications      #-}
-{-# LANGUAGE TypeSynonymInstances  #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Main (main) where
 
-import Ouroboros.Consensus.Storage.ChainDB.API
-import           Test.Consensus.BlockTree (BlockTree (..), BlockTreeBranch (..), prettyBlockTree)
-import           Ouroboros.Network.AnchoredFragment (AnchoredFragment,
-                     toOldestFirst)
+import           Cardano.Node.Run ()
+import           Ouroboros.Consensus.MiniProtocol.ChainSync.Client.State
+import           Ouroboros.Consensus.Storage.ChainDB.API
+import           Ouroboros.Consensus.Util.IOLike
+import           Ouroboros.Network.AnchoredFragment (AnchoredFragment, toOldestFirst)
 import qualified Ouroboros.Network.AnchoredFragment as AF
-import           Test.Consensus.PointSchedule
-import           Test.Consensus.PointSchedule.Peers (peersOnlyHonest)
-import           Test.Consensus.PointSchedule.SinglePeer (SchedulePoint (..),
-                     scheduleBlockPoint, scheduleHeaderPoint, scheduleTipPoint)
-import Test.QuickCheck (generate)
-import Test.Consensus.Genesis.Setup.GenChains
-import Test.Consensus.PeerSimulator.NodeLifecycle
-import Ouroboros.Consensus.MiniProtocol.ChainSync.Client.State
-import Test.Consensus.PeerSimulator.Trace
-import Test.Consensus.PeerSimulator.Run
-import Control.Monad (unless)
-import qualified Data.Map.Merge.Lazy as M
-import Test.Consensus.PeerSimulator.Resources (PeerSimulatorResources(..), makePeerSimulatorResources)
-import Control.Tracer (nullTracer, traceWith, Tracer(..))
-import qualified Data.List.NonEmpty as NonEmpty
-import Data.Aeson (encode, encodeFile, throwDecode, Value, object, (.=))
+import           Ouroboros.Network.NodeToNode (PeerAdvertise (..))
+import           Ouroboros.Network.NodeToNode.Version (DiffusionMode (..))
+import           Ouroboros.Network.PeerSelection.LedgerPeers (RelayAccessPoint (..),
+                   UseLedgerPeers (..))
+import           Ouroboros.Network.PeerSelection.RelayAccessPoint (PortNumber)
+import           Ouroboros.Network.PeerSelection.State.LocalRootPeers (HotValency (..),
+                   WarmValency (..))
+
+import           Control.Monad (unless)
+import           Control.Tracer (Tracer (..), nullTracer, traceWith)
+import           Data.Aeson (Value, encode, encodeFile, object, throwDecode, (.=))
 import qualified Data.ByteString.Lazy.Char8 as BSL8
-import Data.Coerce
-import Data.Foldable
-import Data.Map (Map)
+import           Data.Coerce
+import           Data.Foldable
+import qualified Data.List.NonEmpty as NonEmpty
+import           Data.Map (Map)
 import qualified Data.Map as M
-import Data.Traversable
+import qualified Data.Map.Merge.Lazy as M
+import           Data.Traversable
 import qualified Network.Socket as Socket
-import Options (Options (..), parseOptions)
-import Ouroboros.Consensus.Util.IOLike
--- import Ouroboros.Network.Diffusion.Topology
--- import Ouroboros.Network.PeerSelection.State.LocalRootPeers
---   ( LocalRootPeersGroup (..)
---   , LocalRootPeersGroups (..)
---   , NetworkTopology (..)
---   , RootConfig (..)
---   )
-import Ouroboros.Network.NodeToNode.Version (DiffusionMode (..))
--- import Ouroboros.Network.OrphanInstances ()
-import Ouroboros.Network.PeerSelection.LedgerPeers (RelayAccessPoint (..), UseLedgerPeers (..))
-import Ouroboros.Network.PeerSelection.State.LocalRootPeers (HotValency (..), WarmValency (..))
-import Server (run)
-import System.Environment (getArgs)
-import Test.Consensus.OrphanInstances ()
-import Test.Consensus.PointSchedule (PointSchedule (..))
-import Test.Consensus.PointSchedule.Peers (PeerId (..), Peers (Peers), getPeerIds)
-import Ouroboros.Network.NodeToNode (PeerAdvertise (..))
-import Ouroboros.Network.PeerSelection.RelayAccessPoint (PortNumber)
-import Cardano.Node.Run ()
+import           Options (Options (..), parseOptions)
+import           System.Environment (getArgs)
+
+import           Test.Consensus.BlockTree (BlockTree (..), BlockTreeBranch (..), prettyBlockTree)
+import           Test.Consensus.Genesis.Setup.GenChains
+import           Test.Consensus.OrphanInstances ()
+import           Test.Consensus.PeerSimulator.NodeLifecycle
+import           Test.Consensus.PeerSimulator.Resources (PeerSimulatorResources (..),
+                   makePeerSimulatorResources)
+import           Test.Consensus.PeerSimulator.Run
+import           Test.Consensus.PeerSimulator.Trace
+import           Test.Consensus.PointSchedule
+import           Test.Consensus.PointSchedule (PointSchedule (..))
+import           Test.Consensus.PointSchedule.Peers (PeerId (..), Peers (Peers), getPeerIds,
+                   peersOnlyHonest)
+import           Test.Consensus.PointSchedule.SinglePeer (SchedulePoint (..), scheduleBlockPoint,
+                   scheduleHeaderPoint, scheduleTipPoint)
+import           Test.QuickCheck (generate)
+
+import           Server (run)
 
 testPointSchedule :: PointSchedule blk
 testPointSchedule =

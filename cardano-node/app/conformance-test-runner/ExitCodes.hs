@@ -5,9 +5,9 @@
 -- | Custom exit codes to implement the shrinking logic externally.
 module ExitCodes (ExitStatus (.., Success), StatusFlag (..), exitWithStatus) where
 
-import Data.Bits (Ior (..))
-import Data.Set (Set)
-import System.Exit (ExitCode (..), exitWith)
+import           Data.Bits (Ior (..))
+import           Data.Set (Set)
+import           System.Exit (ExitCode (..), exitWith)
 
 -- | Exit statuses for the test runner. 'Success' is represented
 -- by an empty set of 'StatusFlags'.
