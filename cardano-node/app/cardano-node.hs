@@ -1,11 +1,11 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE GADTs #-}
 
 import qualified Cardano.Crypto.Init as Crypto
 import           Cardano.Git.Rev (gitRev)
-import           Cardano.Node.Configuration.POM (PartialNodeConfiguration(..))
+import           Cardano.Node.Configuration.POM (PartialNodeConfiguration (..))
 import           Cardano.Node.Handlers.TopLevel
 import           Cardano.Node.Parsers (nodeCLIParser, parserHelpHeader, parserHelpOptions,
                    renderHelpDoc)
