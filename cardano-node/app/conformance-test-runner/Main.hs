@@ -174,21 +174,11 @@ runServer = do
     (psrPeers peerSim)
     lifecycle
 
-  putStrLn "Delaying"
-
   threadDelay 5
-
-  putStrLn "Delayed"
-
   tip <- getLocalChainTip $ LocalNodeConnectInfo (CardanoModeParams $ EpochSlots 0) Mainnet $ File "/tmp/cardano.socket"
-
-  putStrLn "Cancelling"
-
-  for_ peerServers $ uninterruptibleCancel . snd
-
   print tip
 
-  pure ()
+  for_ peerServers $ uninterruptibleCancel . snd
 
 
 -- | A schedule that advertises all the points of the trunk up until the nth
