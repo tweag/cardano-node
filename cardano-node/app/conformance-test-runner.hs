@@ -1,6 +1,9 @@
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
@@ -9,11 +12,13 @@ module Main (main) where
 import           Cardano.Api (ConsensusModeParams (..), EpochSlots (..), File (..), NetworkId (..))
 
 import           Cardano.Node.Run ()
+import           Ouroboros.Consensus.Block.Abstract
 import           Ouroboros.Consensus.MiniProtocol.ChainSync.Client.State
-import           Ouroboros.Consensus.Storage.ChainDB.API
+import           Ouroboros.Consensus.Storage.ChainDB.API hiding (getTipPoint)
 import           Ouroboros.Consensus.Util.IOLike
 import           Ouroboros.Network.AnchoredFragment (AnchoredFragment, toOldestFirst)
 import qualified Ouroboros.Network.AnchoredFragment as AF
+import           Ouroboros.Network.Block
 import           Ouroboros.Network.NodeToNode (PeerAdvertise (..))
 import           Ouroboros.Network.NodeToNode.Version (DiffusionMode (..))
 import           Ouroboros.Network.PeerSelection.LedgerPeers (RelayAccessPoint (..),
@@ -32,6 +37,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Map (Map)
 import qualified Data.Map as M
 import qualified Data.Map.Merge.Lazy as M
+import           Data.Maybe (fromJust, maybeToList)
 import           Data.Traversable
 import qualified Network.Socket as Socket
 import           Options (Options (..), parseOptions)
@@ -44,6 +50,7 @@ import           Test.Consensus.PeerSimulator.NodeLifecycle
 import           Test.Consensus.PeerSimulator.Resources (PeerSimulatorResources (..),
                    makePeerSimulatorResources)
 import           Test.Consensus.PeerSimulator.Run
+import           Test.Consensus.PeerSimulator.StateView
 import           Test.Consensus.PeerSimulator.Trace
 import           Test.Consensus.PointSchedule
 import           Test.Consensus.PointSchedule (PointSchedule (..))
@@ -52,16 +59,23 @@ import           Test.Consensus.PointSchedule.Peers (PeerId (..), Peers (Peers),
 import           Test.Consensus.PointSchedule.SinglePeer (SchedulePoint (..), scheduleBlockPoint,
                    scheduleHeaderPoint, scheduleTipPoint)
 import           Test.QuickCheck (generate, scale)
+import           Test.Util.TestBlock (Header (..), TestBlock (..), unTestHash)
 
+import           Debug.Trace (traceM)
 import           Query
 import           Server (run)
-
 
 buildPeerMap :: PortNumber -> PointSchedule blk -> Map PeerId PortNumber
 buildPeerMap firstPort = M.fromList . flip zip [firstPort ..] . getPeerIds . psSchedule
 
 toRelayAP :: PortNumber -> RelayAccessPoint
 toRelayAP = RelayAccessAddress (read "127.0.0.1")
+
+instance Foldable BlockTreeBranch where
+  foldMap f (BlockTreeBranch _ _ _ full) = foldMap f $ toOldestFirst full
+
+instance Foldable BlockTree where
+  foldMap f (BlockTree a b) = foldMap f (toOldestFirst a) <> foldMap (foldMap f) b
 
 makeTopology :: Foldable t => t PortNumber -> Value
 makeTopology ports = object
@@ -119,10 +133,10 @@ runServer = do
   gt <- generate $ scale (flip div 10) $ genChains $ pure 1
   let chain = gt {gtSchedule = rollbackSchedule 1 $ gtBlockTree gt}
       ps = gtSchedule chain
+      blocks = foldMap (\blk -> M.singleton (blockHash blk) blk) $ gtBlockTree chain
 
   Prelude.putStrLn $ unlines $ prettyBlockTree $ gtBlockTree chain
   encodeFile "/tmp/topology.file" $ makeTopology $ buildPeerMap 6000 ps
-
 
   let peerMap = buildPeerMap 6000 ps
 
@@ -154,7 +168,9 @@ runServer = do
 
   putStrLn "Connected!"
 
-  let lifecycle = NodeLifecycle (Just 1000000) (\lir -> pure $ LiveNode { lnChainDb = ChainDB { getCurrentChain = pure $ AF.Empty AF.AnchorGenesis }, lnStateTracer = nullTracer }) (\ln -> pure (LiveIntervalResult {}))
+  svts <- defaultStateViewTracers
+
+  let lifecycle = NodeLifecycle (Just 1000000) (\lir -> pure $ LiveNode { lnChainDb = ChainDB { getCurrentChain = pure $ AF.Empty AF.AnchorGenesis }, lnStateTracer = nullTracer, lnStateViewTracers = svts }) (\ln -> pure (LiveIntervalResult {}))
 
   (chainDb, stateViewTracers) <- runScheduler
     (Tracer $ traceWith nullTracer . TraceSchedulerEvent)
@@ -163,12 +179,34 @@ runServer = do
     (psrPeers peerSim)
     lifecycle
 
-  threadDelay 5
-  tip <- getLocalChainTip $ LocalNodeConnectInfo (CardanoModeParams $ EpochSlots 0) Mainnet $ File "/tmp/cardano.socket"
-  print tip
+  threadDelay 2
+
+  tip@(Tip _ hash _) <- getLocalChainTip $ LocalNodeConnectInfo (CardanoModeParams $ EpochSlots 0) Mainnet $ File "/tmp/cardano.socket"
+
+  ts <- svtGetPeerSimulatorResults stateViewTracers
+
+  let selchain =
+        fromJust $ asum $ do
+          let bt = gtBlockTree chain
+          pchain <- btTrunk bt : fmap btbFull (btBranches bt)
+          pure $ do
+            (c, _) <- AF.splitBeforePoint pchain $ getTipPoint tip
+            pure c
+
+  let sv = StateView
+        { svSelectedChain = AF.mapAnchoredFragment getHeader selchain
+        , svPeerSimulatorResults = ts
+        , svTipBlock = Just $ blocks M.! hash
+        , svTrace = error "conformance-test can't inspect svTrace"
+        }
 
   for_ peerServers $ uninterruptibleCancel . snd
 
+  print $ not . hashOnTrunk . AF.headHash $ svSelectedChain sv
+
+hashOnTrunk :: ChainHash (Header TestBlock) -> Bool
+hashOnTrunk GenesisHash      = True
+hashOnTrunk (BlockHash hash) = all (== 0) $ unTestHash hash
 
 -- | A schedule that advertises all the points of the trunk up until the nth
 -- block after the intersection, then switches to the first alternative
