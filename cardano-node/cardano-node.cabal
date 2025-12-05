@@ -306,15 +306,16 @@ executable conformance-test-runner
   other-modules:
     ExitCodes
     Options
-    Orphans
     Server
     MiniProtocols
+    Query
   build-depends:
     base,
     containers,
     optparse-applicative,
+    cardano-api,
     ouroboros-network:{ouroboros-network},
-    ouroboros-consensus:{ouroboros-consensus, unstable-mock-block, unstable-consensus-testlib},
+    ouroboros-consensus:{ouroboros-consensus, unstable-consensus-testlib},
     ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib,
     ouroboros-network-api,
     aeson,
@@ -331,4 +332,5 @@ executable conformance-test-runner
     io-classes,
     cardano-node,
     QuickCheck,
+    cardano-api,
 

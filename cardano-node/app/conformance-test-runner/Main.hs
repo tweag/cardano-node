@@ -6,6 +6,8 @@
 
 module Main (main) where
 
+import           Cardano.Api (ConsensusModeParams (..), EpochSlots (..), File (..), NetworkId (..))
+
 import           Cardano.Node.Run ()
 import           Ouroboros.Consensus.MiniProtocol.ChainSync.Client.State
 import           Ouroboros.Consensus.Storage.ChainDB.API
@@ -49,8 +51,9 @@ import           Test.Consensus.PointSchedule.Peers (PeerId (..), Peers (Peers),
                    peersOnlyHonest)
 import           Test.Consensus.PointSchedule.SinglePeer (SchedulePoint (..), scheduleBlockPoint,
                    scheduleHeaderPoint, scheduleTipPoint)
-import           Test.QuickCheck (generate)
+import           Test.QuickCheck (generate, scale)
 
+import           Query
 import           Server (run)
 
 testPointSchedule :: PointSchedule blk
@@ -124,7 +127,7 @@ zipMaps = M.merge M.dropMissing M.dropMissing $ M.zipWithMatched $ const (,)
 
 runServer :: IO ()
 runServer = do
-  gt <- generate $ genChains $ pure 1
+  gt <- generate $ scale (flip div 10) $ genChains $ pure 1
   let chain = gt {gtSchedule = rollbackSchedule 1 $ gtBlockTree gt}
       ps = gtSchedule chain
 
@@ -160,6 +163,8 @@ runServer = do
       unless (csChan && bfChan) retry
       pure (csChan, bfChan)
 
+  putStrLn "Connected!"
+
   let lifecycle = NodeLifecycle (Just 1000000) (\lir -> pure $ LiveNode { lnChainDb = ChainDB { getCurrentChain = pure $ AF.Empty AF.AnchorGenesis }, lnStateTracer = nullTracer }) (\ln -> pure (LiveIntervalResult {}))
 
   (chainDb, stateViewTracers) <- runScheduler
@@ -168,14 +173,12 @@ runServer = do
     ps
     (psrPeers peerSim)
     lifecycle
-  -- snapshotStateView stateViewTracers chainDb
 
-  putStrLn "took everything"
-  threadDelay 60
+  threadDelay 5
+  tip <- getLocalChainTip $ LocalNodeConnectInfo (CardanoModeParams $ EpochSlots 0) Mainnet $ File "/tmp/cardano.socket"
+  print tip
 
   for_ peerServers $ uninterruptibleCancel . snd
-
-  pure ()
 
 
 -- | A schedule that advertises all the points of the trunk up until the nth
