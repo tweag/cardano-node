@@ -1,18 +1,19 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -184,7 +185,7 @@ import Cardano.Node.Queries (GetKESInfo)
 import GHC.Generics (Generic (..))
 import NoThunks.Class (NoThunks (..))
 import Ouroboros.Consensus.Block.SupportsSanityCheck (BlockSupportsSanityCheck (..))
-import Ouroboros.Consensus.Block.SupportsMetrics (BlockSupportsMetrics (..))
+import Ouroboros.Consensus.Block.SupportsMetrics (BlockSupportsMetrics (..), WhetherSelfIssued(..))
 import Ouroboros.Consensus.Node.InitStorage (NodeInitStorage (..))
 import Ouroboros.Consensus.Ledger.SupportsPeerSelection (LedgerSupportsPeerSelection (..))
 import Ouroboros.Consensus.Node.Run (SerialiseNodeToClientConstraints, SerialiseNodeToNodeConstraints (..))
@@ -200,10 +201,11 @@ import Ouroboros.Consensus.Storage.Serialisation
   , decodeTrivialSerialisedHeader
   , encodeTrivialSerialisedHeader
   )
+import qualified Data.ByteString.Char8 as BS
 import Cardano.Logging.Types (LogFormatting (..))
 import Ouroboros.Consensus.Block (ChainHash, BlockSupportsMetrics)
 import Ouroboros.Consensus.Protocol.BFT (BftValidationErr)
-import Ouroboros.Consensus.Ledger.Query (SomeBlockQuery)
+import Ouroboros.Consensus.Ledger.Query (SomeBlockQuery(..))
 import Data.Measure.Class (Measure(..))
 
 {- HLINT ignore "Fuse concatMap/map" -}
@@ -253,17 +255,14 @@ data instance Validated (GenTx TestBlock)
 instance ShowProxy (BlockQuery TestBlock)
 instance ShowProxy (TxId (GenTx TestBlock))
 instance ShowProxy (GenTx TestBlock)
-instance Show (GenTx TestBlock)
-instance Show (Validated (GenTx TestBlock))
+deriving instance Show (GenTx TestBlock)
+deriving instance Show (Validated (GenTx TestBlock))
 deriving instance Generic (Validated (GenTx TestBlock))
-instance NoThunks (Validated (GenTx TestBlock)) where
-  noThunks = error "instance NoThunks (Validated (GenTx TestBlock))"
-  wNoThunks = error "instance NoThunks (Validated (GenTx TestBlock))"
-  showTypeOf = error "instance NoThunks (Validated (GenTx TestBlock))"
+instance NoThunks (Validated (GenTx TestBlock))
 instance BlockSupportsSanityCheck TestBlock where
   configAllSecurityParams _ = pure $ Consensus.SecurityParam $ error "configAllSecurityParams"
 instance BlockSupportsMetrics TestBlock where
-  isSelfIssued = error "instance BlockSupportsMetrics TestBlock"
+  isSelfIssued _ _ = UnknownSelfIssued
 instance NodeInitStorage TestBlock where
   nodeImmutableDbChunkInfo _ = simpleChunkInfo $ EpochSize 1
   nodeCheckIntegrity _ _ = True
@@ -271,12 +270,8 @@ instance LedgerSupportsPeerSelection TestBlock where
   getPeers = error "instance LedgerSupportsPeerSelection TestBlock"
 instance SerialiseNodeToClientConstraints TestBlock
 instance CommonProtocolParams TestBlock where
-  maxHeaderSize = error "instance CommonProtocolParams TestBlock"
-  maxTxSize = error "instance CommonProtocolParams TestBlock"
--- instance SupportedNetworkProtocolVersion TestBlock where
---   supportedNodeToNodeVersions _ = foldMap (`Map.singleton` ()) [minBound .. maxBound]
---   supportedNodeToClientVersions _ = foldMap (`Map.singleton` ()) [minBound .. maxBound]
---   latestReleasedNodeVersion = latestReleasedNodeVersionDefault
+  maxHeaderSize _ = 1000
+  maxTxSize _ = 1000
 instance LedgerSupportsMempool TestBlock where
   applyTx = error "instance LedgerSupportsMempool TestBlock"
   reapplyTx = error "instance LedgerSupportsMempool TestBlock"
@@ -295,7 +290,7 @@ deriving instance Show (TxId (GenTx TestBlock))
 instance HasKESMetricsData TestBlock
 instance HasKESInfo TestBlock
 instance ConvertTxId TestBlock where
-  txIdToRawBytes = error "instance ConvertTxId TesBlock"
+  txIdToRawBytes = BS.pack . show
 instance HasIssuer TestBlock where
   getIssuerVerificationKeyHash _ = NoBlockIssuer
 instance HasTxs TestBlock where
@@ -303,10 +298,10 @@ instance HasTxs TestBlock where
 instance HasTxId (GenTx TestBlock) where
   txId = error "instance HasTxId (GenTx TestBlock)"
 instance LedgerQueries TestBlock where
-  ledgerUtxoSize = error "instance LedgerQueries TestBlock"
-  ledgerDelegMapSize = error "instance LedgerQueries TestBlock"
-  ledgerDRepCount = error "instance LedgerQueries TestBlock"
-  ledgerDRepMapSize = error "instance LedgerQueries TestBlock"
+  ledgerUtxoSize _ = 1
+  ledgerDelegMapSize _ = 0
+  ledgerDRepCount _ = 0
+  ledgerDRepMapSize _ = 0
 instance Api.ToJSON (TxId (GenTx TestBlock))
 instance Api.ToJSON (GenTx TestBlock)
 instance Api.ToJSON (Header TestBlock)
@@ -323,20 +318,24 @@ instance ToObject (Header TestBlock)
 instance ToObject (TestBlockError ())
 instance ToObject Api.BlockNo
 instance LogFormatting TestBlock where
-  forMachine = error "instance LogFormatting TestBlock"
+  forMachine _ _ = []
 instance LogFormatting (GenTx TestBlock) where
-  forMachine = error "instance LogFormatting (GenTx TestBlock)"
+  forMachine _ _ = []
 instance LogFormatting (Header TestBlock) where
-  forMachine = error "instance LogFormatting (Header TestBlock)"
+  forMachine _ _ = []
 instance LogFormatting (TestBlockError ()) where
-  forMachine = error "instance LogFormatting (TestBlockError ())"
+  forMachine _ _ = []
 instance LogFormatting Api.BlockNo where
-  forMachine = error "instance LogFormatting Api.BlockNo"
+  forMachine _ _ = []
 instance LogFormatting BftValidationErr where
-  forMachine = error "instance LogFormatting BftValidationErr"
+  forMachine _ _ = []
 instance SerialiseBlockQueryResult TestBlock BlockQuery where
-  encodeBlockQueryResult = error "instance SerialiseBlockQueryResult TestBlock BlockQuery"
-  decodeBlockQueryResult = error "instance SerialiseBlockQueryResult TestBlock BlockQuery"
+  encodeBlockQueryResult _ _ x r =
+    case x of
+      QueryLedgerTip -> encode r
+  decodeBlockQueryResult _ _ x =
+    case x of
+      QueryLedgerTip -> decode
 instance SerialiseNodeToClient TestBlock TestBlockLedgerConfig
 instance SerialiseNodeToClient TestBlock (SomeBlockQuery (BlockQuery TestBlock))
 instance Serialise TestBlockLedgerConfig
@@ -348,8 +347,11 @@ instance SerialiseNodeToClient TestBlock (Serialised TestBlock)
 instance SerialiseNodeToClient TestBlock TestBlock
 
 instance Serialise (SomeBlockQuery (BlockQuery TestBlock)) where
-  encode = error "instance Serialise (SomeBlockQuery (BlockQuery TestBlock))"
-  decode = error "instance Serialise (SomeBlockQuery (BlockQuery TestBlock))"
+  encode (SomeBlockQuery q) =
+    case q of
+      QueryLedgerTip -> encode @Int 0
+  decode =
+    SomeBlockQuery QueryLedgerTip <$ decode @Int
 
 runNode
   :: PartialNodeConfiguration
@@ -373,17 +375,7 @@ runNode cmdPc = do
           checkVRFFilePermissions stdoutTracer (File vrfFp)
       _ -> pure ()
 
-    let consensusProtocol = SomeConsensusProtocol @TestBlock (unsafeCoerce Api.ByronBlockType ) (error "SomeConsensusProtocol: needs a ProtocolInfoArgs TestBlock")
-{-
-    consensusProtocol <-
-      runThrowExceptT $
-        mkConsensusProtocol
-         (ncProtocolConfig nc)
-         -- TODO: Convert ncProtocolFiles to Maybe as relay nodes
-         -- don't need these.
-         (Just $ ncProtocolFiles nc)
--}
-
+    let consensusProtocol = SomeConsensusProtocol @TestBlock (unsafeCoerce Api.ByronBlockType ) $ TestBlockInfoArgs
     handleNodeWithTracers cmdPc nc consensusProtocol
 
 runThrowExceptT :: Exception e => ExceptT e IO a -> IO a
