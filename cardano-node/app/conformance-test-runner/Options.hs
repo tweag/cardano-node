@@ -14,11 +14,14 @@ import qualified Options.Applicative as O
 import           System.IO (hPutStrLn, stderr)
 
 import           ExitCodes
+import           ShrinkIndex
 
 data Options = Options
   { optTestFile :: FilePath
   , optOutputTopologyFile :: String
   , optPort :: PortNumber
+  , optMinimalTestOutput :: Maybe FilePath
+  , optShrinkIndex :: Maybe ShrinkIndex
   }
 
 options :: ParserInfo Options
@@ -41,26 +44,43 @@ optsP :: Parser Options
 optsP = do
   optTestFile <- strArgument $ metavar "TEST_FILE"
   optOutputTopologyFile <-
-    strOption
-      ( mconcat
-          [ long "topology-file"
-          , short 't'
-          , metavar "FILE_PATH"
-          , value "topology.file"
-          , help "File path for the testing topology file (JSON)"
-          ]
-      )
+    strOption $
+      mconcat
+        [ long "topology-file"
+        , short 't'
+        , metavar "FILE_PATH"
+        , value "topology.file"
+        , help "File path for the testing topology file (JSON)"
+        ]
+
   optPort <-
-    option
-      auto
-      ( mconcat
-          [ long "port"
-          , short 'p'
-          , metavar "PORT_NUMBER"
-          , value 3001
-          , help "Starting port for simulated peers"
-          ]
-      )
+    option auto $
+      mconcat
+        [ long "port"
+        , short 'p'
+        , metavar "PORT_NUMBER"
+        , value 3001
+        , help "Starting port for simulated peers"
+        ]
+
+  optMinimalTestOutput <-
+    O.optional $ strOption $
+      mconcat
+        [ long "minimal-test-output"
+        , short 'm'
+        , metavar "FILE_PATH"
+        , help "File path for the minimal counterexample test file"
+        ]
+
+  optShrinkIndex <-
+    O.optional $ fmap path $ option auto $
+      mconcat
+        [ long "shrink-index"
+        , short 'i'
+        , metavar "SHRINK_INDEX"
+        , help "An index pointing to a shrunk test case"
+        ]
+
   pure Options{..}
 
 parseOptions :: [String] -> IO (Options)
