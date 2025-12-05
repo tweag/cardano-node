@@ -43,10 +43,10 @@ optsP = do
   optOutputTopologyFile <-
     strOption
       ( mconcat
-          [ long "output-topology-file"
-          , short 'o'
-          , metavar "FILE_NAME"
-          , value "topology.json"
+          [ long "topology-file"
+          , short 't'
+          , metavar "FILE_PATH"
+          , value "topology.file"
           , help "File path for the testing topology file (JSON)"
           ]
       )
