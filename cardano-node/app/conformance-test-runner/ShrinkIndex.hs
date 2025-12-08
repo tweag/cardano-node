@@ -1,11 +1,13 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 -- | Indexing the shrinking tree
 module ShrinkIndex
   ( ShrinkTree,
     ShrinkIndex,
+    Kleisli (runKleisli),
     makeShrinkTree,
     node,
     arbitraryShrinkTree,
@@ -14,12 +16,14 @@ module ShrinkIndex
     succ,
     next,
     child,
-    narrowShrinkTreeDown,
+    narrowShrinkTree,
+    path,
   )
 where
 
 import           Prelude hiding (lookup, succ)
 
+import           Control.Monad ((>=>))
 import           Data.Foldable (toList)
 import           Data.Maybe (listToMaybe)
 import           Data.Sequence (Seq (..), fromList)
@@ -38,7 +42,7 @@ instance Arbitrary ShrinkIndex where
   arbitrary = frequency [(4, child <$> arbitrary), (1, pure mempty)]
   shrink (Ix s) = Ix <$> shrink s
 
-data ShrinkTree a = Node a [ShrinkTree a] deriving stock (Eq, Show, Functor, Foldable, Traversable)
+data ShrinkTree a = Node a [ShrinkTree a] deriving stock (Functor, Foldable, Traversable)
 
 instance (Arbitrary a) => Arbitrary (ShrinkTree a) where
   arbitrary = fmap arbitraryShrinkTree arbitrary
@@ -64,12 +68,24 @@ makeShrinkTree f x = Node x $ fmap (makeShrinkTree f) $ f x
 arbitraryShrinkTree :: (Arbitrary a) => a -> ShrinkTree a
 arbitraryShrinkTree = makeShrinkTree shrink
 
+-- | Find the 'ShrinkTree' node a 'ShrinkIndex' points to.
 lookup :: ShrinkIndex -> ShrinkTree a -> Maybe a
-lookup ix tree = node <$> narrowShrinkTreeDown ix tree
+lookup ix tree = node <$> runKleisli (narrowShrinkTree ix) tree
 
-narrowShrinkTreeDown :: ShrinkIndex -> ShrinkTree a -> Maybe (ShrinkTree a)
-narrowShrinkTreeDown (Ix Empty) tree = Just tree
-narrowShrinkTreeDown (Ix (n :<| ns)) tree = (listToMaybe . drop n . branches) tree >>= narrowShrinkTreeDown (Ix ns)
+-- | A 'ShrinkTree' traversal by the given index's path.
+narrowShrinkTree :: ShrinkIndex -> Kleisli Maybe (ShrinkTree a) (ShrinkTree a)
+narrowShrinkTree = foldMap (\n -> Kleisli (listToMaybe . drop n . branches)) . getIndex
+
+-- | A local definition of 'Control.Arrow.Kleisli' to provide a non-orphan
+-- 'Monoid' instance. With this, the algebraic structure of the tree path
+-- traversal by `narrowShrinkTree` is made explicit.
+newtype Kleisli m a b = Kleisli { runKleisli :: a -> m b }
+
+instance Monad m => Semigroup (Kleisli m a a) where
+  Kleisli f <> Kleisli g = Kleisli $ f >=> g
+
+instance Monad m => Monoid (Kleisli m a a) where
+  mempty = Kleisli pure
 
 -- | Confines an index transformation /within/ a 'ShrinkTree'
 withinTree :: (ShrinkIndex -> ShrinkIndex) -> ShrinkTree a -> ShrinkIndex -> Maybe ShrinkIndex

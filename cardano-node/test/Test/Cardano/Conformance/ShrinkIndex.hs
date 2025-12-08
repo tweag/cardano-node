@@ -9,7 +9,7 @@
 module Test.Cardano.Conformance.ShrinkIndex (tests) where
 
 
-import           Control.Monad ((>=>))
+import           Data.Function (on)
 import           Data.Kind (Constraint, Type)
 import           Data.Proxy
 
@@ -18,16 +18,17 @@ import           Test.Tasty.QuickCheck (Arbitrary (..), Property, elements, oneo
                    testProperty)
 
 import qualified ShrinkIndex as Ix
-import           ShrinkIndex (ShrinkIndex, ShrinkTree, narrowShrinkTreeDown)
+import           ShrinkIndex (Kleisli (runKleisli), ShrinkIndex, ShrinkTree)
 
 tests :: TestTree
 tests =
   testGroup
     "Shrink index properties"
-    [ testProperty "Empty index always points to the current node" prop_emptyIndexLookup
-    , testProperty "Empty index has no successor" prop_emptySucc
+    [ testProperty "Empty index always points to the current (top) node of a tree" prop_emptyIndexLookup
+    , testProperty "Empty index has no successor on a tree" prop_emptySucc
     , testProperty "Neighbor index picks the next sibling" prop_next
-    , testProperty "The index monoidal operation composes on tree paths" prop_indexHomomorphism
+    , testProperty "The index monoidal operation distributes over shrink tree narrowing" prop_indexDistributes
+    , testProperty "The empty index produces the identity when narrowing shrink trees" prop_indexIdentity
     ]
 
 type Some :: (Type -> Constraint) -> Type
@@ -39,7 +40,7 @@ data Some c where
     Some c
 
 instance Eq (Some c) where
-  Some Proxy == Some Proxy = Proxy == Proxy
+  Some Proxy == Some Proxy  = Proxy == Proxy
 
 instance Show (Some c) where
   show (Some Proxy) = show Proxy
@@ -78,7 +79,28 @@ prop_emptyIndexLookup (Some (_ :: Proxy a)) = property $ do
   tree <- arbitrary @(ShrinkTree a)
   pure $ Ix.lookup mempty tree == Just (Ix.node tree)
 
-prop_indexHomomorphism :: ShrinkIndex -> ShrinkIndex -> Some Arbitrary -> Property
-prop_indexHomomorphism ix1 ix2 (Some (_ :: Proxy a)) = property $ do
+-- | Narrowing a 'ShrinkTree' by a 'ShrinkIndex' distributes over
+-- the index monoidal operation. In other words, indexes compose as paths
+-- traversing down a 'ShrinkTree'. Defined by testing for equality on the
+-- result's current node, because comparing full 'ShirnkTree's is untenable as
+-- they are exponentially big.
+-- Along with 'prop_indexIndentity', proves that 'narrowShrinkTree' is a
+-- monoid homomorphism.
+prop_indexDistributes :: ShrinkIndex -> ShrinkIndex -> Some Arbitrary -> Property
+prop_indexDistributes ix1 ix2 (Some (_ :: Proxy a)) = property $ do
   tree <- arbitrary @(ShrinkTree a)
-  pure $ (==) <$> narrowShrinkTreeDown (ix1 <> ix2) <*> (narrowShrinkTreeDown ix1 >=> narrowShrinkTreeDown ix2) $ tree
+  pure $ on (==) (fmap Ix.node . ($ tree) . runKleisli )
+           (Ix.narrowShrinkTree (ix1 <> ix2))
+           (Ix.narrowShrinkTree ix1 <> Ix.narrowShrinkTree ix2)
+
+-- | Narrowing a 'ShrinkTree' by an empty index is equal to identity.
+-- Defined by testing for equality on the result's current node, because
+-- comparing full 'ShrinkTree's is untenable as they are exponentially big.
+-- Along with 'prop_indexDistributes', proves that 'narrowShrinkTree' is a
+-- monoid homomorphism.
+prop_indexIdentity :: Some Arbitrary -> Property
+prop_indexIdentity (Some (_ :: Proxy a)) = property $ do
+  tree <- arbitrary @(ShrinkTree a)
+  pure $ on (==) (fmap Ix.node . ($ tree) . runKleisli )
+           (Ix.narrowShrinkTree mempty)
+           mempty
