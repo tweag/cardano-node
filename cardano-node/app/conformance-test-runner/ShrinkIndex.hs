@@ -7,7 +7,6 @@
 module ShrinkIndex
   ( ShrinkTree,
     ShrinkIndex,
-    Kleisli (runKleisli),
     makeShrinkTree,
     node,
     arbitraryShrinkTree,
@@ -28,7 +27,8 @@ import           Data.Foldable (toList)
 import           Data.Maybe (listToMaybe)
 import           Data.Sequence (Seq (..), fromList)
 
-import           Test.QuickCheck (Arbitrary (..), frequency)
+import           Test.QuickCheck (Arbitrary (..), Testable (property), frequency)
+import           Test.QuickCheck.Checkers (EqProp (..), eq)
 
 -- | Each index represents a unique path along a 'ShrinkTree'. The monoidal
 -- operation corresponds to extending by the corresponding tree path, and the
@@ -86,6 +86,13 @@ instance Monad m => Semigroup (Kleisli m a a) where
 
 instance Monad m => Monoid (Kleisli m a a) where
   mempty = Kleisli pure
+
+-- | The testing notion of 'ShrinkTree' path equality is given by the observation
+-- of the current (top) 'node'.
+instance (Arbitrary a, Eq b) => EqProp (Kleisli Maybe (ShrinkTree a) (ShrinkTree b)) where
+  Kleisli f =-= Kleisli g = property $ do
+    x <- arbitrary
+    pure $ eq (fmap node $ f x) (fmap node $ g x)
 
 -- | Confines an index transformation /within/ a 'ShrinkTree'
 withinTree :: (ShrinkIndex -> ShrinkIndex) -> ShrinkTree a -> ShrinkIndex -> Maybe ShrinkIndex

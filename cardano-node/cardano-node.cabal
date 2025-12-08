@@ -305,6 +305,7 @@ library conformance-test-internal
   build-depends:
     base,
     containers,
+    checkers,
     QuickCheck,
 
 executable conformance-test-runner
@@ -350,6 +351,7 @@ test-suite conformance-test-runner-test
 
   build-depends:        base
                       , cardano-node:conformance-test-internal
+                      , checkers
                       , hedgehog
                       , tasty
                       , tasty-quickcheck
