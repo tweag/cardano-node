@@ -11,7 +11,8 @@ module Test.Cardano.Conformance.ShrinkIndex (tests) where
 
 import           Data.Function (on)
 import           Data.Kind (Constraint, Type)
-import           Data.Proxy
+import           Data.Proxy (Proxy (..))
+import           Data.Typeable (Typeable, eqT, typeRep)
 
 import           Test.Tasty
 import           Test.Tasty.QuickCheck (Arbitrary (..), Property, elements, oneof, property,
@@ -31,20 +32,26 @@ tests =
     , testProperty "The empty index produces the identity when narrowing shrink trees" prop_indexIdentity
     ]
 
+-- | A data representation of 'Some' type class constraint.
+-- It bears withness of its 'Proxy' implementing said class.
 type Some :: (Type -> Constraint) -> Type
 data Some c where
   Some ::
     forall (c :: Type -> Constraint) (a :: Type).
-    (c a, Show a, Eq a) =>
+    (c a, Eq a, Typeable a) =>
     Proxy a ->
     Some c
 
 instance Eq (Some c) where
-  Some Proxy == Some Proxy  = Proxy == Proxy
+  Some (_ :: Proxy a) == Some (_ :: Proxy b) =
+    case eqT @a @b of
+      Nothing -> False
+      Just _ -> True
 
 instance Show (Some c) where
-  show (Some Proxy) = show Proxy
+  show (Some (proxy :: Proxy a)) = show (typeRep proxy)
 
+-- | Generation of (some) arbitrary types for 'ShrinkTree' (mock) values.
 instance Arbitrary (Some Arbitrary) where
   arbitrary =
     oneof
