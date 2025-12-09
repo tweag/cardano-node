@@ -305,6 +305,7 @@ library conformance-test-internal
   build-depends:
     base,
     containers,
+    comonad,
     checkers,
     QuickCheck,
 
@@ -351,6 +352,7 @@ test-suite conformance-test-runner-test
 
   build-depends:        base
                       , cardano-node:conformance-test-internal
+                      , comonad
                       , checkers
                       , hedgehog
                       , tasty
