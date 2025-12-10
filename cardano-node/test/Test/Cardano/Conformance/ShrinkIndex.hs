@@ -21,13 +21,34 @@ import           Test.Tasty.QuickCheck (Arbitrary (..), Property, conjoin, eleme
 import qualified ShrinkIndex as Ix
 import           ShrinkIndex (ShrinkIndex, ShrinkTree)
 
+--------------------------------------------------------------------------------
+-- | [NOTE:SHRINK-INDEX-PROPERTIES]:
+-- A 'ShrinkIndex' represents a path inside a 'ShrinkTree' and is in direct
+-- correspondance to its end node's value. It is used to generate a shrunk
+-- counterexample when a property test fails.
+--
+-- The index interface exposes 'QuickCheck'-like property testing workflow
+-- primitives for the @conformance-test-runner@ executable where:
+-- In case of a test failure, the index is 'Ix.stretch'ed to the first
+-- shriking candidate of the current counterexample; if this operation fails,
+-- the former is deemed a minimal counterexample.
+-- In case of success (with a non-empty index) the next candidate
+-- counterexample is picked using `Ix.succ`; if this operation fails, the
+-- index is rolled back to its 'parent', which is then deemed a minimal
+-- counterexample.
+--
+-- All these operations depend on 'Ix.lookup' to 'extract' the counterexample
+-- from the 'ShrinkTree' if it exists. The following property tests complement
+-- this specification; crucially, that a monoid homomorphism underlies
+-- 'Ix.lookup'.
+--------------------------------------------------------------------------------
 tests :: TestTree
 tests =
   testGroup
     "Shrink index properties"
-    [ testProperty "Empty index always points to the current (top) node of a tree" prop_emptyIndexLookup
+    [ testProperty "Empty index lookup returns the current (top) node of a tree" prop_emptyIndexLookup
     , testProperty "Empty index has no successor on a tree" prop_emptySucc
-    , testProperty "Neighbor index picks the next sibling" prop_next
+    , testProperty "The next function picks an index next sibling" prop_next
     , testProperty "Shrink tree traversal by and index path is a monoid homomorphism" prop_monoidHomomorphism
     ]
 

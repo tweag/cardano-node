@@ -32,9 +32,10 @@ import           Data.Sequence (Seq (..), fromList)
 import           Test.QuickCheck (Arbitrary (..), Testable (property), frequency)
 import           Test.QuickCheck.Checkers (EqProp (..), eq)
 
--- | Each 'ShrinkIndex' represents a unique path along a 'ShrinkTree'. The monoidal
--- operation corresponds to /stretching/ one path by another, and the
--- neutral element points to the current 'ShrinkTree' top node (representing a test case).
+-- | Each 'ShrinkIndex' represents a unique path along a 'ShrinkTree'. Its monoidal
+-- operation corresponds to /stretching/ one path by another, and its
+-- neutral (empty) element corresponds to the current 'ShrinkTree' top node
+-- (representing a test counterexample). See [NOTE:SHRINK-INDEX-PROPERTIES]
 newtype ShrinkIndex = Ix {getIndex :: Seq Int} deriving (Eq, Ord, Semigroup, Monoid)
 
 instance Show ShrinkIndex where
@@ -82,7 +83,9 @@ arbitraryShrinkTree = makeShrinkTree shrink
 lookup :: ShrinkIndex -> ShrinkTree a -> Maybe a
 lookup ix tree = fmap extract $ runKleisli (narrowShrinkTree ix) tree
 
--- | A 'ShrinkTree' traversal by the given index's path.
+-- | A 'ShrinkTree' traversal by the given index's path. It is a monoid
+-- homomorphism; this property is fundamental for the specification of 'lookup'.
+-- See [NOTE:SHRINK-INDEX-PROPERTIES]
 narrowShrinkTree :: ShrinkIndex -> Kleisli Maybe (ShrinkTree a) (ShrinkTree a)
 narrowShrinkTree = foldMap (\n -> Kleisli (listToMaybe . drop n . branches)) . getIndex
 
