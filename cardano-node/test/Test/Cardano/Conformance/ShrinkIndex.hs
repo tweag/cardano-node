@@ -13,7 +13,6 @@ import           Data.Kind (Type)
 import           Data.Proxy (Proxy (..))
 import           Data.Typeable (Typeable, eqT, typeRep)
 
-import           Test.QuickCheck.Checkers (EqProp)
 import           Test.QuickCheck.Classes (monoidMorphism)
 import           Test.Tasty (TestTree, testGroup)
 import           Test.Tasty.QuickCheck (Arbitrary (..), Property, conjoin, elements, oneof,
@@ -37,7 +36,7 @@ tests =
 data SomeType where
   SomeType ::
     forall (a :: Type).
-    (Arbitrary a, Eq a, EqProp a, Typeable a, Show a) =>
+    (Arbitrary a, Eq a, Typeable a) =>
     Proxy a ->
     SomeType
 

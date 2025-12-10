@@ -24,11 +24,12 @@ import           Prelude hiding (lookup, succ)
 import           Control.Comonad (Comonad (..))
 import           Control.Monad ((>=>))
 import           Data.Foldable (toList)
+import           Data.Function (on)
 import           Data.Maybe (listToMaybe)
 import           Data.Sequence (Seq (..), fromList)
 
-import           Test.QuickCheck (Arbitrary (..), frequency)
-import           Test.QuickCheck.Checkers (EqProp (..))
+import           Test.QuickCheck (Arbitrary (..), Testable (property), frequency)
+import           Test.QuickCheck.Checkers (EqProp (..), eq)
 
 -- | Each 'ShrinkIndex' represents a unique path along a 'ShrinkTree'. The monoidal
 -- operation corresponds to /stretching/ one path by another, and the
@@ -43,9 +44,6 @@ instance Arbitrary ShrinkIndex where
   shrink (Ix s) = Ix <$> shrink s
 
 data ShrinkTree a = Node a [ShrinkTree a] deriving stock (Functor, Foldable, Traversable)
-
-instance Show a => Show (ShrinkTree a) where
-  show tree = show $ extract tree
 
 instance Comonad ShrinkTree where
   extract = node
@@ -99,8 +97,10 @@ instance Monad m => Monoid (Kleisli m a a) where
 
 -- | The testing notion of 'ShrinkTree' path equality is given by the observation
 -- of the current (top) node.
-instance (Arbitrary a, Show a, EqProp b) => EqProp (Kleisli Maybe (ShrinkTree a) (ShrinkTree b)) where
-    Kleisli f =-= Kleisli g = fmap extract . f =-= fmap extract . g
+instance (Arbitrary a, Eq b) => EqProp (Kleisli Maybe (ShrinkTree a) (ShrinkTree b)) where
+    Kleisli f =-= Kleisli g = property $ do
+      x <- arbitrary
+      pure $ on eq (fmap extract) (f x) (g x)
 
 -- | Confines an index transformation /within/ a 'ShrinkTree'
 withinTree :: (ShrinkIndex -> ShrinkIndex) -> ShrinkTree a -> ShrinkIndex -> Maybe ShrinkIndex
