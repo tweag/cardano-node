@@ -16,6 +16,7 @@ module ShrinkIndex
     child,
     narrowShrinkTree,
     path,
+    parent,
   )
 where
 
@@ -76,7 +77,8 @@ makeShrinkTree f x = Node x $ fmap (makeShrinkTree f) $ f x
 arbitraryShrinkTree :: (Arbitrary a) => a -> ShrinkTree a
 arbitraryShrinkTree = makeShrinkTree shrink
 
--- | Find the 'ShrinkTree' node a 'ShrinkIndex' points to.
+-- | Find the 'ShrinkTree' node a 'ShrinkIndex' points to. It returns the
+-- root note of the tree when passsed the empty index.
 lookup :: ShrinkIndex -> ShrinkTree a -> Maybe a
 lookup ix tree = fmap extract $ runKleisli (narrowShrinkTree ix) tree
 
@@ -122,3 +124,8 @@ child n = Ix $ fromList [n]
 next :: ShrinkIndex -> ShrinkIndex
 next (Ix Empty) = mempty
 next (Ix (xs :|> x)) = Ix (xs :|> (x + 1))
+
+-- | The index of the parent node.
+parent :: ShrinkIndex -> ShrinkIndex
+parent (Ix Empty) = mempty
+parent (Ix (xs :|> _)) = Ix xs
