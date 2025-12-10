@@ -299,50 +299,66 @@ test-suite cardano-node-test
   ghc-options:          -threaded -rtsopts "-with-rtsopts=-N -T"
 
 library conformance-testlib
-  import: project-config
-  hs-source-dirs: src-conformance-test
-  exposed-modules: ShrinkIndex
-  build-depends:
-    base,
-    containers,
-    comonad,
-    checkers,
-    QuickCheck,
+  import:               project-config
+  hs-source-dirs:       src-conformance-test
+  exposed-modules:      ExitCodes
+                        MiniProtocols
+                        Options
+                        Query
+                        Server
+                        ShrinkIndex
+  build-depends:        base
+                      , containers
+                      , comonad
+                      , checkers
+                      , QuickCheck
+                      , containers
+                      , optparse-applicative
+                      , ouroboros-network:{ouroboros-network}
+                      , ouroboros-consensus:{ouroboros-consensus, unstable-consensus-testlib}
+                      , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
+                      , ouroboros-network-api
+                      , aeson
+                      , bytestring
+                      , ouroboros-network-framework
+                      , network
+                      , network-mux
+                      , contra-tracer
+                      , resource-registry
+                      , serialise
+                      , ouroboros-network-protocols
+                      , cborg
+                      , ouroboros-consensus-diffusion
+                      , io-classes
+                      , cardano-node
+                      , cardano-api
 
 executable conformance-test-runner
-  import: project-config
-  hs-source-dirs: app/conformance-test-runner
-  main-is: Main.hs
-  other-modules:
-    ExitCodes
-    Options
-    Server
-    MiniProtocols
-    Query
-  build-depends:
-    base,
-    containers,
-    optparse-applicative,
-    cardano-api,
-    ouroboros-network:{ouroboros-network},
-    ouroboros-consensus:{ouroboros-consensus, unstable-consensus-testlib},
-    ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib,
-    ouroboros-network-api,
-    aeson,
-    bytestring,
-    ouroboros-network-framework,
-    network,
-    network-mux,
-    contra-tracer,
-    resource-registry,
-    serialise,
-    ouroboros-network-protocols,
-    cborg,
-    ouroboros-consensus-diffusion,
-    io-classes,
-    cardano-node:{cardano-node, conformance-testlib},
-    QuickCheck,
-    cardano-api,
+  import:               project-config
+  hs-source-dirs:       app
+  main-is:              conformance-test-runner.hs
+  build-depends:        base
+                      , containers
+                      , optparse-applicative
+                      , ouroboros-network:{ouroboros-network}
+                      , ouroboros-consensus:{ouroboros-consensus, unstable-consensus-testlib}
+                      , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
+                      , ouroboros-network-api
+                      , aeson
+                      , bytestring
+                      , ouroboros-network-framework
+                      , network
+                      , network-mux
+                      , contra-tracer
+                      , resource-registry
+                      , serialise
+                      , ouroboros-network-protocols
+                      , cborg
+                      , ouroboros-consensus-diffusion
+                      , io-classes
+                      , cardano-node:{cardano-node, conformance-testlib}
+                      , QuickCheck
+                      , cardano-api
 
 test-suite conformance-testlib-test
   import:               project-config
