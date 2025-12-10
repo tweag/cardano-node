@@ -31,9 +31,9 @@ import           Data.Sequence (Seq (..), fromList)
 import           Test.QuickCheck (Arbitrary (..), frequency)
 import           Test.QuickCheck.Checkers (EqProp (..))
 
--- | Each index represents a unique path along a 'ShrinkTree'. The monoidal
--- operation corresponds to extending by the corresponding tree path, and the
--- neutral element to the current node (representing a test case).
+-- | Each 'ShrinkIndex' represents a unique path along a 'ShrinkTree'. The monoidal
+-- operation corresponds to extending one path by another, and the
+-- neutral element points to the current 'ShrinkTree' top node (representing a test case).
 newtype ShrinkIndex = Ix {getIndex :: Seq Int} deriving (Eq, Ord, Semigroup, Monoid)
 
 instance Show ShrinkIndex where
@@ -59,9 +59,11 @@ instance (Arbitrary a) => Arbitrary (ShrinkTree a) where
   -- @shrink tree = branches tree@
   shrink = fmap arbitraryShrinkTree . shrink . node
 
+-- | Build a path out of an integer list.
 path :: [Int] -> ShrinkIndex
 path = foldMap child
 
+-- | The top node of a 'ShrinkTree'.
 node :: ShrinkTree a -> a
 node (Node x _) = x
 
@@ -73,6 +75,7 @@ branches (Node _ bs) = bs
 makeShrinkTree :: (a -> [a]) -> a -> ShrinkTree a
 makeShrinkTree f x = Node x $ fmap (makeShrinkTree f) $ f x
 
+-- | Unfold a 'ShrinTree' using the 'Arbitrary'\'s instance 'shrink'.
 arbitraryShrinkTree :: (Arbitrary a) => a -> ShrinkTree a
 arbitraryShrinkTree = makeShrinkTree shrink
 
