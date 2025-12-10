@@ -298,6 +298,16 @@ test-suite cardano-node-test
 
   ghc-options:          -threaded -rtsopts "-with-rtsopts=-N -T"
 
+library conformance-testlib
+  import: project-config
+  hs-source-dirs: src-conformance-test
+  exposed-modules: ShrinkIndex
+  build-depends:
+    base,
+    containers,
+    comonad,
+    checkers,
+    QuickCheck,
 
 executable conformance-test-runner
   import: project-config
@@ -330,7 +340,21 @@ executable conformance-test-runner
     cborg,
     ouroboros-consensus-diffusion,
     io-classes,
-    cardano-node,
+    cardano-node:{cardano-node, conformance-testlib},
     QuickCheck,
     cardano-api,
 
+test-suite conformance-testlib-test
+  import:               project-config
+  hs-source-dirs:       test
+  main-is:              conformance-testlib-test.hs
+  type:                 exitcode-stdio-1.0
+
+  build-depends:        base
+                      , cardano-node:conformance-testlib
+                      , comonad
+                      , checkers
+                      , tasty
+                      , tasty-quickcheck
+
+  other-modules:        Test.Cardano.Conformance.ShrinkIndex
