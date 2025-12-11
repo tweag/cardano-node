@@ -18,7 +18,8 @@ import           ShrinkIndex
 
 data Options = Options
   { optTestFile :: FilePath
-  , optOutputTopologyFile :: String
+  , optOutputTopologyFile :: FilePath
+  , optSocketPath :: FilePath
   , optPort :: PortNumber
   , optMinimalTestOutput :: Maybe FilePath
   , optShrinkIndex :: Maybe ShrinkIndex
@@ -80,6 +81,16 @@ optsP = do
         , metavar "SHRINK_INDEX"
         , help "An index pointing to a shrunk test case"
         ]
+
+  optSocketPath <-
+    strOption $
+      mconcat
+        [ long "socket-path"
+        , short 's'
+        , metavar "FILEPATH"
+        , help "Filepath to a Unix domain socket for communicating to the NUT"
+        ]
+
 
   pure Options{..}
 

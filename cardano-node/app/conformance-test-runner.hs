@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
-module Main (main, oldMain) where
+module Main (main) where
 
 import           Cardano.Api (ConsensusModeParams (..), EpochSlots (..), File (..), NetworkId (..))
 
@@ -37,6 +37,7 @@ import           Data.Map (Map)
 import qualified Data.Map as M
 import qualified Data.Map.Merge.Lazy as M
 import           Data.Maybe (fromJust)
+import qualified Data.Set as S
 import           Data.Traversable
 import qualified Network.Socket as Socket
 import           Options (Options (..), parseOptions)
@@ -58,6 +59,7 @@ import           Test.Consensus.PointSchedule.SinglePeer (SchedulePoint (..), sc
 import           Test.QuickCheck (generate, scale)
 import           Test.Util.TestBlock (TestBlock, unTestHash)
 
+import           ExitCodes
 import           Query
 import           Server (run)
 
@@ -111,23 +113,20 @@ makeTopology ports = object
  where
   num_peers = length ports
 
-oldMain :: IO ()
-oldMain = do
+main :: IO ()
+main = do
   args <- getArgs
   opts <- parseOptions args
-  contents <- BSL8.readFile (optTestFile opts)
-  pointSchedule <- throwDecode contents :: IO (PointSchedule Bool)
-  let simPeerMap = buildPeerMap (optPort opts) pointSchedule
-  BSL8.writeFile (optOutputTopologyFile opts) (encode $ makeTopology simPeerMap)
-
-main :: IO ()
-main = runServer >>= print
+  res <- runServer (optPort opts) (optSocketPath opts) (optOutputTopologyFile opts)
+  exitWithStatus $ case res of
+    True -> Success
+    False -> Flags $ S.singleton TestFailed
 
 zipMaps :: Ord k => Map k a -> Map k b -> Map k (a, b)
 zipMaps = M.merge M.dropMissing M.dropMissing $ M.zipWithMatched $ const (,)
 
-runServer :: IO Bool
-runServer = do
+runServer :: PortNumber -> FilePath -> FilePath -> IO Bool
+runServer firstPort socketPath outputTopologyPath = do
   -- Generate a random RollBack test chain. We divide the test size by 10 here
   -- because 'TestBlock's have a hardcoded size of 100---anything longer will
   -- crash when being deserialized.
@@ -136,15 +135,14 @@ runServer = do
     pure $ gt {gtSchedule = rollbackSchedule 1 $ gtBlockTree gt}
 
   let ps = gtSchedule chain
-      peerMap = buildPeerMap 6000 ps
+      peerMap = buildPeerMap firstPort ps
 
   -- Print out the generated block tree so that the person running the test
   -- knows what's going on. We probably don't want to do this in real code.
   Prelude.putStrLn $ unlines $ prettyBlockTree $ gtBlockTree chain
 
-  -- Write out a topology file to a known place. This should be a parameter,
-  -- but it's convenient for now.
-  encodeFile "/tmp/topology.file" $ makeTopology peerMap
+  -- Write out the generated topology file.
+  encodeFile outputTopologyPath $ makeTopology peerMap
 
   -- Make a new peer simulator, and then for each peer in it, spin up a new
   -- ChainSync and BlockFetch server.
@@ -208,12 +206,11 @@ runServer = do
   -- simulated peers.
   threadDelay 2
 
-  -- Ask the NUT what chain tip it ended up at. Here we have hardcoded the
-  -- socket path, but this too should be a parameter.
+  -- Ask the NUT what chain tip it ended up at.
   tip@(Tip _ hash _) <-
     getLocalChainTip $
       LocalNodeConnectInfo (CardanoModeParams $ EpochSlots 0) Mainnet $
-        File "/tmp/cardano.socket"
+        File socketPath
 
   -- Reconstruct the "selected chain" that the NUT ended up on. We can do this
   -- as an oracle, because we know what the block tree was. Thus, we can just
