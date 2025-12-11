@@ -38,14 +38,13 @@ import           MiniProtocols (peerSimServer)
 -- | Glue code for using just the bits from the Diffusion Layer that we need in
 -- this context.
 serve ::
-  StrictTMVar IO SockAddr ->
   SockAddr ->
   N2N.Versions
     N2N.NodeToNodeVersion
     N2N.NodeToNodeVersionData
     (OuroborosApplicationWithMinimalCtx 'Mux.ResponderMode SockAddr BL.ByteString IO Void ()) ->
   IO Void
-serve _ sockAddr application = withIOManager \iocp -> do
+serve sockAddr application = withIOManager \iocp -> do
   let sn = Snocket.socketSnocket iocp
       family = Snocket.addrFamily sn sockAddr
   bracket (Snocket.open sn family) (Snocket.close sn) \socket -> do
@@ -80,16 +79,14 @@ run ::
   , blk ~ TestBlock
   ) =>
   PeerResources IO blk ->
-  -- | A TMVar for the connecting peer
-  StrictTMVar IO SockAddr ->
   -- | A TMVar for the chainsync channel that we will fill in once the node connects.
   StrictTVar IO Bool ->
   -- | A TMVar for the blockfetch channel that we will fill in once the node connects.
   StrictTVar IO Bool ->
   SockAddr ->
   IO Void
-run res incomingTV csChanTMV bfChanTMV sockAddr = withRegistry \_registry ->
-  serve incomingTV sockAddr
+run res csChanTMV bfChanTMV sockAddr = withRegistry \_registry ->
+  serve sockAddr
     $ peerSimServer @_ @TestBlock
       res
       csChanTMV
