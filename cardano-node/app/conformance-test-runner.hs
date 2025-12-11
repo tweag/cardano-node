@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
-module Main (main) where
+module Main (main, oldMain) where
 
 import           Cardano.Api (ConsensusModeParams (..), EpochSlots (..), File (..), NetworkId (..))
 
@@ -31,13 +31,12 @@ import           Control.Monad (unless)
 import           Control.Tracer (Tracer (..), nullTracer, traceWith)
 import           Data.Aeson (Value, encode, encodeFile, object, throwDecode, (.=))
 import qualified Data.ByteString.Lazy.Char8 as BSL8
-import           Data.Coerce
 import           Data.Foldable
 import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Map (Map)
 import qualified Data.Map as M
 import qualified Data.Map.Merge.Lazy as M
-import           Data.Maybe (fromJust, maybeToList)
+import           Data.Maybe (fromJust)
 import           Data.Traversable
 import qualified Network.Socket as Socket
 import           Options (Options (..), parseOptions)
@@ -53,15 +52,12 @@ import           Test.Consensus.PeerSimulator.Run
 import           Test.Consensus.PeerSimulator.StateView
 import           Test.Consensus.PeerSimulator.Trace
 import           Test.Consensus.PointSchedule
-import           Test.Consensus.PointSchedule (PointSchedule (..))
-import           Test.Consensus.PointSchedule.Peers (PeerId (..), Peers (Peers), getPeerIds,
-                   peersOnlyHonest)
+import           Test.Consensus.PointSchedule.Peers (PeerId (..), getPeerIds, peersOnlyHonest)
 import           Test.Consensus.PointSchedule.SinglePeer (SchedulePoint (..), scheduleBlockPoint,
                    scheduleHeaderPoint, scheduleTipPoint)
 import           Test.QuickCheck (generate, scale)
-import           Test.Util.TestBlock (Header (..), TestBlock (..), unTestHash)
+import           Test.Util.TestBlock (TestBlock, unTestHash)
 
-import           Debug.Trace (traceM)
 import           Query
 import           Server (run)
 
@@ -69,7 +65,7 @@ buildPeerMap :: PortNumber -> PointSchedule blk -> Map PeerId PortNumber
 buildPeerMap firstPort = M.fromList . flip zip [firstPort ..] . getPeerIds . psSchedule
 
 toRelayAP :: PortNumber -> RelayAccessPoint
-toRelayAP = RelayAccessAddress (read "127.0.0.1")
+toRelayAP = RelayAccessAddress $ read "127.0.0.1"
 
 instance Foldable BlockTreeBranch where
   foldMap f (BlockTreeBranch _ _ _ full) = foldMap f $ toOldestFirst full
@@ -115,35 +111,46 @@ makeTopology ports = object
  where
   num_peers = length ports
 
+oldMain :: IO ()
+oldMain = do
+  args <- getArgs
+  opts <- parseOptions args
+  contents <- BSL8.readFile (optTestFile opts)
+  pointSchedule <- throwDecode contents :: IO (PointSchedule Bool)
+  let simPeerMap = buildPeerMap (optPort opts) pointSchedule
+  BSL8.writeFile (optOutputTopologyFile opts) (encode $ makeTopology simPeerMap)
+
 main :: IO ()
-main = do
-  runServer
-  -- args <- getArgs
-  -- opts <- parseOptions args
-  -- contents <- BSL8.readFile (optTestFile opts)
-  -- pointSchedule <- throwDecode contents :: IO (PointSchedule Bool)
-  -- let simPeerMap = buildPeerMap (optPort opts) pointSchedule
-  -- BSL8.writeFile (optOutputTopologyFile opts) (encode $ makeTopology simPeerMap)
+main = runServer >>= print
 
 zipMaps :: Ord k => Map k a -> Map k b -> Map k (a, b)
 zipMaps = M.merge M.dropMissing M.dropMissing $ M.zipWithMatched $ const (,)
 
-runServer :: IO ()
+runServer :: IO Bool
 runServer = do
-  gt <- generate $ scale (flip div 10) $ genChains $ pure 1
-  let chain = gt {gtSchedule = rollbackSchedule 1 $ gtBlockTree gt}
-      ps = gtSchedule chain
-      blocks = foldMap (\blk -> M.singleton (blockHash blk) blk) $ gtBlockTree chain
+  -- Generate a random RollBack test chain. We divide the test size by 10 here
+  -- because 'TestBlock's have a hardcoded size of 100---anything longer will
+  -- crash when being deserialized.
+  chain <- generate $ scale (flip div 10) $ do
+    gt <- genChains $ pure 1
+    pure $ gt {gtSchedule = rollbackSchedule 1 $ gtBlockTree gt}
 
+  let ps = gtSchedule chain
+      peerMap = buildPeerMap 6000 ps
+
+  -- Print out the generated block tree so that the person running the test
+  -- knows what's going on. We probably don't want to do this in real code.
   Prelude.putStrLn $ unlines $ prettyBlockTree $ gtBlockTree chain
-  encodeFile "/tmp/topology.file" $ makeTopology $ buildPeerMap 6000 ps
 
-  let peerMap = buildPeerMap 6000 ps
+  -- Write out a topology file to a known place. This should be a parameter,
+  -- but it's convenient for now.
+  encodeFile "/tmp/topology.file" $ makeTopology peerMap
 
-  peerSim <- makePeerSimulatorResources nullTracer (gtBlockTree chain) $ NonEmpty.fromList $ M.keys peerMap
-
-  incomingTMV <- newEmptyTMVarIO
-
+  -- Make a new peer simulator, and then for each peer in it, spin up a new
+  -- ChainSync and BlockFetch server.
+  peerSim <-
+    makePeerSimulatorResources nullTracer (gtBlockTree chain) $
+      NonEmpty.fromList $ M.keys peerMap
   peerServers <-
     for (zipMaps peerMap $ psrPeers peerSim) $ \(port, res) -> do
       -- Make a TMVar for the chainsync and blockfetch channels exposed through
@@ -152,39 +159,68 @@ runServer = do
       csChannelTMV <- newTVarIO False
       bfChannelTMV <- newTVarIO False
 
-      putStrLn $ "starting server on " <> show port
-      let sockAddr = Socket.SockAddrInet port $ Socket.tupleToHostAddress (127, 0, 0, 1)
-      thread <- async $ run res incomingTMV csChannelTMV bfChannelTMV sockAddr
+      putStrLn $ "Starting server on " <> show port
+      let sockAddr =
+            Socket.SockAddrInet port $
+              Socket.tupleToHostAddress (127, 0, 0, 1)
+      thread <- async $ run res csChannelTMV bfChannelTMV sockAddr
       pure ((csChannelTMV, bfChannelTMV), thread)
 
-  -- Now, take each of the resulting TMVars. This effectively blocks until the
-  -- NUT has connected.
-  _peerChannels <- atomically $ do
-    for peerServers $ \((csChanTMV, bfChanTMV), _thread) -> do
+  -- Now, take each of the resulting TMVars. This blocks until the NUT has
+  -- connected to all of our simulated peers.
+  atomically $ do
+    for_ peerServers $ \((csChanTMV, bfChanTMV), _thread) -> do
       csChan <- readTVar csChanTMV
       bfChan <- readTVar bfChanTMV
       unless (csChan && bfChan) retry
-      pure (csChan, bfChan)
 
   putStrLn "Connected!"
 
+  -- Build up a fake 'NodeLifecycle' we can pass to the point schedule runner.
+  -- We should refactor that code so as to not require this, but this is good
+  -- enough for an MVP.
   svts <- defaultStateViewTracers
+  let lifecycle =
+        NodeLifecycle
+          (Just 1000000)
+          (const $ pure $ LiveNode
+            { lnChainDb = ChainDB
+                { getCurrentChain = pure $ AF.Empty AF.AnchorGenesis
+                }
+            , lnStateTracer = nullTracer
+            , lnStateViewTracers = svts
+            , lnCopyToImmDb = pure $ error "lnCopyToImmDb"
+            , lnPeers = M.keysSet peerMap
+            })
+          $ const $ pure $ LiveIntervalResult
+            { lirPeerResults = []
+            , lirActive = mempty
+            }
 
-  let lifecycle = NodeLifecycle (Just 1000000) (\lir -> pure $ LiveNode { lnChainDb = ChainDB { getCurrentChain = pure $ AF.Empty AF.AnchorGenesis }, lnStateTracer = nullTracer, lnStateViewTracers = svts }) (\ln -> pure (LiveIntervalResult {}))
-
-  (chainDb, stateViewTracers) <- runScheduler
+  (_, stateViewTracers) <- runScheduler
     (Tracer $ traceWith nullTracer . TraceSchedulerEvent)
     (cschcMap (psrHandles peerSim))
     ps
     (psrPeers peerSim)
     lifecycle
 
+  -- Give the NUT a chance to catch up to all the messages coming from the
+  -- simulated peers.
   threadDelay 2
 
-  tip@(Tip _ hash _) <- getLocalChainTip $ LocalNodeConnectInfo (CardanoModeParams $ EpochSlots 0) Mainnet $ File "/tmp/cardano.socket"
+  -- Ask the NUT what chain tip it ended up at. Here we have hardcoded the
+  -- socket path, but this too should be a parameter.
+  tip@(Tip _ hash _) <-
+    getLocalChainTip $
+      LocalNodeConnectInfo (CardanoModeParams $ EpochSlots 0) Mainnet $
+        File "/tmp/cardano.socket"
 
-  ts <- svtGetPeerSimulatorResults stateViewTracers
-
+  -- Reconstruct the "selected chain" that the NUT ended up on. We can do this
+  -- as an oracle, because we know what the block tree was. Thus, we can just
+  -- check the NUT's tip against every possible branch in the tree.
+  --
+  -- The use of 'fromJust' here ought to be safe, assuming the NUT started from
+  -- genesis and saw all of the blocks from the simulated peers.
   let selchain =
         fromJust $ asum $ do
           let bt = gtBlockTree chain
@@ -193,16 +229,39 @@ runServer = do
             (c, _) <- AF.splitBeforePoint pchain $ getTipPoint tip
             pure c
 
+  -- Construct a map from hashes to blocks. Again, we should be able to ask the
+  -- NUT for which block they ended up on, but Sandy's 'TestBlock' IPC
+  -- implementation fails to decode the relevant message coming from the NUT.
+  -- Unclear if this is a bug in Sandy's code, or something further upstream.
+  let blocks = foldMap (\blk -> M.singleton (blockHash blk) blk) $
+                 gtBlockTree chain
+
+  -- Finally, build a 'StateView' we can use to evaluate the test's acceptance
+  -- criteria.
+  ts <- svtGetPeerSimulatorResults stateViewTracers
   let sv = StateView
         { svSelectedChain = AF.mapAnchoredFragment getHeader selchain
         , svPeerSimulatorResults = ts
         , svTipBlock = Just $ blocks M.! hash
-        , svTrace = error "conformance-test can't inspect svTrace"
+        , svTrace =
+            -- 'svTrace' is a trace of what the NUT actually did. Such a thing
+            -- makes sense when we observing the internal state of
+            -- @cardano-node@ (like the tests were originally designed for),
+            -- but much less sense for alternative, black-box implementations.
+            -- Thankfully, almost no tests actually inspect this field.
+            error "conformance-test can't inspect svTrace"
         }
 
+  -- Kill all of the simulated peers.
   for_ peerServers $ uninterruptibleCancel . snd
 
-  print $ not . hashOnTrunk . AF.headHash $ svSelectedChain sv
+  -- Return the test's acceptance criteria.
+  pure $ not . hashOnTrunk . AF.headHash $ svSelectedChain sv
+
+
+--------------------------------------------------------------------------------
+-- The remainder of this file is copied from the ouroboros-consensus
+-- PeerSimulator RollBack test, because it's not yet convenient to import it.
 
 hashOnTrunk :: ChainHash (Header TestBlock) -> Bool
 hashOnTrunk GenesisHash      = True
