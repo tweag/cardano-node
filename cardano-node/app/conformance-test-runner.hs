@@ -56,17 +56,6 @@ import           Test.QuickCheck (generate, scale)
 import           Query
 import           Server (run)
 
-testPointSchedule :: PointSchedule blk
-testPointSchedule =
-  PointSchedule
-    { psSchedule =
-        Peers
-          (M.fromList [(1, undefined)])
-          mempty
-          -- (M.fromList [(1, undefined)])
-    , psStartOrder = []
-    , psMinEndTime = error "min end time"
-    }
 
 buildPeerMap :: PortNumber -> PointSchedule blk -> Map PeerId PortNumber
 buildPeerMap firstPort = M.fromList . flip zip [firstPort ..] . getPeerIds . psSchedule
