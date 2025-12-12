@@ -117,10 +117,13 @@ main :: IO ()
 main = do
   args <- getArgs
   opts <- parseOptions args
-  res <- runServer (optPort opts) (optSocketPath opts) (optOutputTopologyFile opts)
+  res <-
+    try @_ @SomeException $
+      runServer (optPort opts) (optSocketPath opts) (optOutputTopologyFile opts)
   exitWithStatus $ case res of
-    True -> Success
-    False -> Flags $ S.singleton TestFailed
+    Left _ -> InternalError
+    Right True -> Success
+    Right False -> Flags $ S.singleton TestFailed
 
 zipMaps :: Ord k => Map k a -> Map k b -> Map k (a, b)
 zipMaps = M.merge M.dropMissing M.dropMissing $ M.zipWithMatched $ const (,)
