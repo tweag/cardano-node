@@ -22,7 +22,7 @@ import qualified ShrinkIndex as Ix
 import           ShrinkIndex (ShrinkIndex, ShrinkTree)
 
 --------------------------------------------------------------------------------
--- | [NOTE:SHRINK-INDEX-PROPERTIES]:
+-- | [NOTE: shrink-index-properties]:
 -- A 'ShrinkIndex' represents a path inside a 'ShrinkTree' and is in direct
 -- correspondance to its end node's value. It is used to generate a shrunk
 -- counterexample when a property test fails.

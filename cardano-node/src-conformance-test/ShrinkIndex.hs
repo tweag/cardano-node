@@ -35,18 +35,17 @@ import           Test.QuickCheck (Arbitrary (..), Gen, Testable (property), freq
 import           Test.QuickCheck.Checkers (EqProp (..), eq)
 
 -- | Each 'ShrinkIndex' represents a unique path along a 'ShrinkTree'. Its monoidal
--- operation corresponds to /stretching/ one path by another, and its
+-- operation corresponds to concatenating one path onto the other, and its
 -- neutral (empty) element corresponds to the current 'ShrinkTree' top node
--- (representing a test counterexample). See [NOTE:SHRINK-INDEX-PROPERTIES]
+-- (representing a test counterexample). See [NOTE: shrink-index-properties]
 newtype ShrinkIndex = Ix {getIndex :: Seq Int} deriving (Eq, Ord, Semigroup, Monoid)
 
 instance Show ShrinkIndex where
   show (Ix s) = "path " <> show (toList s)
 
 instance Arbitrary ShrinkIndex where
-  arbitrary =
-    let arbitraryChild = frequency [(4, child <$> arbitrary), (1, pure mempty)]
-     in fmap mconcat $ listOf arbitraryChild
+  arbitrary = fmap mconcat $ listOf $
+    frequency [(4, child <$> arbitrary), (1, pure mempty)]
 
   shrink (Ix s) = Ix <$> shrink s
 
@@ -89,14 +88,14 @@ arbitraryShrinkIndexWithin :: ShrinkTree a -> Gen ShrinkIndex
 arbitraryShrinkIndexWithin tree =
   suchThat arbitrary (isJust . flip lookup tree)
 
--- | Find the 'ShrinkTree' node a 'ShrinkIndex' points to. It returns the
+-- | Find the value that a 'ShrinkIndex' points to. It returns the
 -- root note of the tree when passsed the empty index.
 lookup :: ShrinkIndex -> ShrinkTree a -> Maybe a
 lookup ix tree = fmap extract $ runKleisli (narrowShrinkTree ix) tree
 
 -- | A 'ShrinkTree' traversal by the given index's path. It is a monoid
 -- homomorphism; this property is fundamental for the specification of 'lookup'.
--- See [NOTE:SHRINK-INDEX-PROPERTIES]
+-- See [NOTE: shrink-index-properties]
 narrowShrinkTree :: ShrinkIndex -> Kleisli Maybe (ShrinkTree a) (ShrinkTree a)
 narrowShrinkTree = foldMap (\n -> Kleisli (listToMaybe . drop n . branches)) . getIndex
 
@@ -130,16 +129,16 @@ stretch = withinTree (<> child 0)
 succ :: ShrinkTree a -> ShrinkIndex -> Maybe ShrinkIndex
 succ = withinTree next
 
--- | The immediate nth child 'ShrinkTree' index.
+-- | The immediate nth child node index.
 child :: Int -> ShrinkIndex
 child n = Ix $ fromList [n]
 
--- | The next sibling 'ShrinkTree' branch index.
+-- | The index of the next sibling node, or 'mempty' if the index contains no calls to 'child'.
 next :: ShrinkIndex -> ShrinkIndex
 next (Ix Empty) = mempty
 next (Ix (xs :|> x)) = Ix (xs :|> (x + 1))
 
 -- | The index of the parent node.
-parent :: ShrinkIndex -> ShrinkIndex
-parent (Ix Empty) = mempty
-parent (Ix (xs :|> _)) = Ix xs
+parent :: ShrinkIndex -> Maybe ShrinkIndex
+parent (Ix Empty) = Nothing
+parent (Ix (xs :|> _)) = Just $ Ix xs
