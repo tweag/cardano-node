@@ -318,7 +318,7 @@ library conformance-testlib
                       , ouroboros-consensus:{ouroboros-consensus, unstable-consensus-testlib}
                       , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
                       , ouroboros-network-api
-                      , aeson
+                    --  , aeson
                       , bytestring
                       , ouroboros-network-framework
                       , network
@@ -359,6 +359,17 @@ executable conformance-test-runner
                       , cardano-node:{cardano-node, conformance-testlib}
                       , QuickCheck
                       , cardano-api
+
+executable conformance-test-viewer
+  import:               project-config
+  hs-source-dirs:       app
+  main-is:              conformance-test-viewer.hs
+  build-depends:        base
+                      , cardano-node:conformance-testlib
+                      , aeson
+                      , aeson-pretty
+                      , bytestring
+                      , QuickCheck
 
 test-suite conformance-testlib-test
   import:               project-config
