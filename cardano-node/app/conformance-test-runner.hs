@@ -27,7 +27,7 @@ import           Ouroboros.Network.PeerSelection.RelayAccessPoint (PortNumber)
 import           Ouroboros.Network.PeerSelection.State.LocalRootPeers (HotValency (..),
                    WarmValency (..))
 
-import           Control.Monad (unless)
+import           Control.Monad (unless, when)
 import           Control.Tracer (Tracer (..), nullTracer, traceWith)
 import           Data.Aeson (Value, encode, encodeFile, object, throwDecode, (.=))
 import qualified Data.ByteString.Lazy.Char8 as BSL8
@@ -36,7 +36,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Map (Map)
 import qualified Data.Map as M
 import qualified Data.Map.Merge.Lazy as M
-import           Data.Maybe (fromJust)
+import           Data.Maybe (fromJust, isJust)
 import qualified Data.Set as S
 import           Data.Traversable
 import qualified Network.Socket as Socket
@@ -56,12 +56,16 @@ import           Test.Consensus.PointSchedule
 import           Test.Consensus.PointSchedule.Peers (PeerId (..), getPeerIds, peersOnlyHonest)
 import           Test.Consensus.PointSchedule.SinglePeer (SchedulePoint (..), scheduleBlockPoint,
                    scheduleHeaderPoint, scheduleTipPoint)
-import           Test.QuickCheck (generate, scale)
+import           Test.QuickCheck (Arbitrary, generate, scale)
 import           Test.Util.TestBlock (TestBlock, unTestHash)
 
 import           ExitCodes
 import           Query
 import           Server (run)
+import           ShrinkIndex (ShrinkIndex, ShrinkTree, arbitraryShrinkTree)
+import qualified ShrinkIndex as Ix
+
+instance Arbitrary (GenesisTest TestBlock (PointSchedule TestBlock))
 
 buildPeerMap :: PortNumber -> PointSchedule blk -> Map PeerId PortNumber
 buildPeerMap firstPort = M.fromList . flip zip [firstPort ..] . getPeerIds . psSchedule
@@ -117,26 +121,77 @@ main :: IO ()
 main = do
   args <- getArgs
   opts <- parseOptions args
+
+  -- The test should be parsed from `optTestFile`, but its chain and acceptance
+  -- criteria are hard coded for convenience until the @testgen@ utility is implemented.
+  -- Generate a random RollBack test chain. We divide the test size by 10 here
+  -- because 'TestBlock's have a hardcoded size of 100---anything longer will
+  -- crash when being deserialized.
+  chain0 <- generate $ scale (flip div 10) $ do
+    gt <- genChains $ pure 1
+    pure $ gt {gtSchedule = rollbackSchedule 1 $ gtBlockTree gt}
+
+  let tree = arbitraryShrinkTree chain0
+      inputIndex = optShrinkIndex opts
+  chain <- case inputIndex of
+    -- Note that both no index and the empty index should
+    -- return the original chain. See [NOTE: shrink-index-properties]
+    Nothing -> pure chain0
+    Just ix -> case Ix.lookup ix tree of
+      Nothing -> do
+        putStrLn "Incorrect shrink index"
+        exitWithStatus BadUsage
+      Just chain' -> pure chain'
+
   res <-
     try @_ @SomeException $
-      runServer (optPort opts) (optSocketPath opts) (optOutputTopologyFile opts)
-  exitWithStatus $ case res of
-    Left _ -> InternalError
-    Right True -> Success
-    Right False -> Flags $ S.singleton TestFailed
+      runServer
+        (optPort opts)
+        (optSocketPath opts)
+        (optOutputTopologyFile opts)
+        chain
+  case res of
+    Left _ -> exitWithStatus InternalError
+    Right prop ->
+      let updatedIndex = updateShrinkIndex tree prop inputIndex
+      in case (prop, inputIndex, updatedIndex) of
+        -- Test pass.
+        (True, Nothing, _) -> exitWithStatus Success
+        -- Local test pass.
+        (True, _, Just ix) -> do
+          putStrLn $ "Continue shrinking with index: " <> show ix
+          exitWithStatus $ Flags $ S.singleton ContinueShrinking
+        -- Local test pass exhausting the shrinking branch
+        (True, Just ix, Nothing) -> do
+          case Ix.parent ix of
+            Just ix' -> do
+              putStrLn $ "Discovered minimal counterexample on parent index: " <> show ix'
+              when (isJust $ optMinimalTestOutput opts) $
+                -- 'fromJust' is safe here because the parent of an index generated
+                -- by 'updateShrinkIndex' is always on the tree
+                encodeFile (fromJust $ optMinimalTestOutput opts) (fromJust (Ix.lookup ix' tree))
+              -- TODO: Missing flag for this case!!!
+              exitWithStatus $ Flags $ S.singleton TestFailed
+            -- If input index is empty, this is a test pass.
+            Nothing -> exitWithStatus Success
+        (False, _, Just ix) -> do
+          putStrLn $ "Continue shrinking with index: " <> show ix
+          exitWithStatus $ Flags $ S.fromList [TestFailed, ContinueShrinking]
+        (False, Just ix, Nothing) -> do
+          putStrLn $ "Found minimal counterexample with current index: " <> show ix
+          when (isJust $ optMinimalTestOutput opts) $
+            encodeFile (fromJust $ optMinimalTestOutput opts) chain
+          exitWithStatus $ Flags $ S.singleton TestFailed
 
 zipMaps :: Ord k => Map k a -> Map k b -> Map k (a, b)
 zipMaps = M.merge M.dropMissing M.dropMissing $ M.zipWithMatched $ const (,)
 
-runServer :: PortNumber -> FilePath -> FilePath -> IO Bool
-runServer firstPort socketPath outputTopologyPath = do
-  -- Generate a random RollBack test chain. We divide the test size by 10 here
-  -- because 'TestBlock's have a hardcoded size of 100---anything longer will
-  -- crash when being deserialized.
-  chain <- generate $ scale (flip div 10) $ do
-    gt <- genChains $ pure 1
-    pure $ gt {gtSchedule = rollbackSchedule 1 $ gtBlockTree gt}
-
+runServer :: PortNumber
+          -> FilePath
+          -> FilePath
+          -> GenesisTest TestBlock (PointSchedule TestBlock)
+          -> IO Bool
+runServer firstPort socketPath outputTopologyPath chain = do
   let ps = gtSchedule chain
       peerMap = buildPeerMap firstPort ps
 
@@ -256,6 +311,8 @@ runServer firstPort socketPath outputTopologyPath = do
   for_ peerServers $ uninterruptibleCancel . snd
 
   -- Return the test's acceptance criteria.
+  -- This should be parsed out of the test file parameter, but is currently
+  -- hard coded for convenience.
   pure $ not . hashOnTrunk . AF.headHash $ svSelectedChain sv
 
 
@@ -293,3 +350,16 @@ rollbackSchedule n blockTree =
     banalSchedulePoints = concatMap banalSchedulePoints' . toOldestFirst
     banalSchedulePoints' :: blk -> [SchedulePoint blk]
     banalSchedulePoints' block = [scheduleTipPoint block, scheduleHeaderPoint block, scheduleBlockPoint block]
+
+-- | Update a possibly absent 'ShrinkIndex' according to a property test result.
+updateShrinkIndex :: ShrinkTree a -> Bool -> Maybe ShrinkIndex -> Maybe ShrinkIndex
+updateShrinkIndex tree prop maybeIx = case (prop, maybeIx) of
+        -- A direct test pass does not need shrinking
+        (True, Nothing) -> Nothing
+        -- A test pass with a shrink index.
+        (True, Just ix) | ix == mempty -> Nothing
+                        | otherwise -> Ix.succ tree ix
+                      
+        -- When the test fails, stretch
+        (False, Nothing) -> Ix.stretch tree mempty
+        (False, Just ix) -> Ix.stretch tree ix
