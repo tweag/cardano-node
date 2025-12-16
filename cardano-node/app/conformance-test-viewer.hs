@@ -84,7 +84,7 @@ optionParser = Options
     (long "output" <> mconcat
         [ metavar "FILE_PATH"
         , value Nothing
-        , help "File path writing output"
+        , help "File path for writing output"
         ]))
   <*> (option (eitherReader parseTestCaseType)
     (long "type" <> mconcat
