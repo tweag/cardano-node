@@ -5,8 +5,6 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
-{-# OPTIONS_GHC -Wno-redundant-constraints #-}
-
 module Server (run) where
 
 import           Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode, getNetworkMagic)
