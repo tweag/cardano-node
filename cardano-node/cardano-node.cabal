@@ -369,7 +369,10 @@ executable conformance-test-viewer
                       , aeson
                       , aeson-pretty
                       , bytestring
+                      , mtl
                       , optparse-applicative
+                      , ouroboros-consensus-cardano
+                      , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
                       , QuickCheck
 
 test-suite conformance-testlib-test
