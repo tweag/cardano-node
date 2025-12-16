@@ -44,7 +44,6 @@ data Options = Options
   { optInputPath    :: Maybe FilePath -- ^ Where to read input (default stdin)
   , optShrinkIndex  :: ShrinkIndex    -- ^ Which shrink of the input to analyze
   , optOutputPath   :: Maybe FilePath -- ^ Where to write output (default stdout)
-  , optPrettyPrint  :: Bool           -- ^ Pretty print output? (default true)
   , optTestCaseType :: TestCaseType   -- ^ For testing; specify a test case type
   , optMode         :: Mode
   } deriving (Eq, Show)
@@ -87,10 +86,6 @@ optionParser = Options
         , value Nothing
         , help "File path writing output"
         ]))
-  <*> flag True False
-    (long "notpretty" <> mconcat
-        [ help "Do not pretty print output"
-        ])
   <*> (option (eitherReader parseTestCaseType)
     (long "type" <> mconcat
       [ short 't'
@@ -180,11 +175,7 @@ analyzeShrinkTree (TestCase testCase) = do
 
 writeOutputTestCase :: ViewableTestCase -> ViewerM ()
 writeOutputTestCase (TestCase testCase) = do
-  doPrettyPrint <- asks optPrettyPrint
-  let bytes = case doPrettyPrint of
-        True  -> encodePretty testCase
-        False -> encode testCase
-
+  let bytes = encodePretty testCase
   outputPath <- asks optOutputPath
   liftIO $ case outputPath of
     Nothing -> BS.putStr bytes >> putStrLn ""
