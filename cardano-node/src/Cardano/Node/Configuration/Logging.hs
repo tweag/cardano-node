@@ -8,8 +8,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
-{-# OPTIONS_GHC -Wno-unused-binds -Wno-unused-imports -Wno-unused-matches #-} -- TODO: do not merge this
-
 module Cardano.Node.Configuration.Logging
   ( LoggingLayer (..)
   , EKGDirect(..)
