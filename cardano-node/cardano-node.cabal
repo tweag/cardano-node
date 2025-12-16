@@ -369,6 +369,7 @@ executable conformance-test-viewer
                       , aeson
                       , aeson-pretty
                       , bytestring
+                      , optparse-applicative
                       , QuickCheck
 
 test-suite conformance-testlib-test
