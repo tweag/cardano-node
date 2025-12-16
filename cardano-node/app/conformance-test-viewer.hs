@@ -67,8 +67,8 @@ options = info
 
 optionParser :: Parser Options
 optionParser = Options
-  <$> (option (Just <$> str)
-    (long "input" <> mconcat
+  <$> (argument (Just <$> str)
+    (mconcat
         [ metavar "FILE_PATH"
         , value Nothing
         , help "File path for the test case file (JSON)"
@@ -146,7 +146,7 @@ getInputTestCase = do
   case testCaseType of
     IntTC         -> readInputTestCase @Int
     StringTC      -> readInputTestCase @String
-    GenesisTestTC -> readInputTestCase @(GenesisTest ByronBlock (PointSchedule ByronBlock))
+    -- GenesisTestTC -> readInputTestCase @(GenesisTest ByronBlock (PointSchedule ByronBlock)) -- TODO
 
 -- | Read and parse a JSON-encoded test case either
 -- from a file or from stdin.
