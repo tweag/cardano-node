@@ -64,6 +64,7 @@ import           Query
 import           Server (run)
 import           ShrinkIndex (ShrinkIndex, ShrinkTree, arbitraryShrinkTree)
 import qualified ShrinkIndex as Ix
+import System.IO (hPutStrLn, stderr)
 
 instance Arbitrary (GenesisTest TestBlock (PointSchedule TestBlock))
 
@@ -159,13 +160,15 @@ main = do
         (True, Nothing, _) -> exitWithStatus Success
         -- Local test pass.
         (True, _, Just ix) -> do
-          putStrLn $ "Continue shrinking with index: " <> show ix
+          hPutStrLn stderr $ "Continue shrinking with index: " <> show ix
+          print ix
           exitWithStatus $ Flags $ S.singleton ContinueShrinking
         -- Local test pass exhausting the shrinking branch
         (True, Just ix, Nothing) -> do
           case Ix.parent ix of
             Just ix' -> do
-              putStrLn $ "Discovered minimal counterexample on parent index: " <> show ix'
+              hPutStrLn stderr $ "Discovered minimal counterexample on parent index: " <> show ix'
+              print ix'
               when (isJust $ optMinimalTestOutput opts) $
                 -- 'fromJust' is safe here because the parent of an index generated
                 -- by 'updateShrinkIndex' is always on the tree
@@ -175,10 +178,12 @@ main = do
             -- If input index is empty, this is a test pass.
             Nothing -> exitWithStatus Success
         (False, _, Just ix) -> do
-          putStrLn $ "Continue shrinking with index: " <> show ix
+          hPutStrLn stderr $ "Continue shrinking with index: " <> show ix
+          print ix
           exitWithStatus $ Flags $ S.fromList [TestFailed, ContinueShrinking]
         (False, Just ix, Nothing) -> do
-          putStrLn $ "Found minimal counterexample with current index: " <> show ix
+          hPutStrLn stderr $ "Found minimal counterexample with current index: " <> show ix
+          print ix
           when (isJust $ optMinimalTestOutput opts) $
             encodeFile (fromJust $ optMinimalTestOutput opts) chain
           exitWithStatus $ Flags $ S.singleton TestFailed
