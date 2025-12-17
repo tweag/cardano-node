@@ -369,6 +369,7 @@ executable conformance-test-viewer
                       , aeson
                       , aeson-pretty
                       , bytestring
+                      , errors
                       , mtl
                       , optparse-applicative
                       , ouroboros-consensus-cardano

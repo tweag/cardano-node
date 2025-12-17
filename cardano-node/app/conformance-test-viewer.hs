@@ -5,15 +5,15 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module Main (main) where
 
 import           Prelude hiding (lookup)
 
-import           Control.Monad.Except (ExceptT(), runExceptT, throwError)
-import           Control.Monad.IO.Class (liftIO)
+import           Control.Error.Util (failWith)
+import           Control.Monad.Except (ExceptT(), runExceptT, throwError, MonadError(..))
+import           Control.Monad.IO.Class (MonadIO(..), liftIO)
 import           Control.Monad.Reader (ReaderT(), asks, runReaderT)
 import           Data.Aeson (eitherDecode, encode, FromJSON(..), ToJSON(..))
 import           Data.Aeson.Encode.Pretty (encodePretty)
@@ -95,22 +95,21 @@ optionParser = Options
 
 
 
--- Helper monad for the main function, providing the
--- options environment and early exit.
-type ViewerM a = ReaderT Options (ExceptT String IO) a
-
-runViewerM :: Options -> ViewerM a -> IO (Either String a)
-runViewerM opts = runExceptT . flip runReaderT opts
-
-runWithHandler :: ViewerM a -> (String -> IO a) -> Options -> IO a
-runWithHandler act handle opts =
-  runViewerM opts act >>= either handle pure
-
-
 main :: IO ()
-main = getArgs >>= getOptions
-  >>= runWithHandler (getInputTestCase >>= analyzeShrinkTree >>= writeOutputTestCase)
-        (\err -> hPutStr stderr (err <> "\n") >> Exit.exitWithStatus Exit.InternalError)
+main = do
+  args <- getArgs
+  opts <- getOptions args
+
+  result <- runExceptT $ do
+    testCase <- getInputTestCase (optTestCaseType opts) (optInputPath opts)
+    shrinkResult <- analyzeShrinkTree (optMode opts) (optShrinkIndex opts) testCase
+    writeOutputTestCase (optOutputPath opts) shrinkResult
+
+  case result of
+    Right () -> pure ()
+    Left err -> do
+      hPutStr stderr (err <> "\n")
+      Exit.exitWithStatus Exit.BadUsage
 
 
 
@@ -138,43 +137,41 @@ getOptions args = do
 -- | Determine from the program options what type the input test
 -- case should be instantiated at, and then read it.
 getInputTestCase
-  :: ViewerM ViewableTestCase
-getInputTestCase = do
-  testCaseType <- asks optTestCaseType
+  :: (MonadError String m, MonadIO m)
+  => TestCaseType -> Maybe FilePath -> m ViewableTestCase
+getInputTestCase testCaseType inputPath = do
   case testCaseType of
-    IntTC         -> readInputTestCase @Int
-    StringTC      -> readInputTestCase @String
+    IntTC         -> readInputTestCase (Proxy :: Proxy Int)    inputPath
+    StringTC      -> readInputTestCase (Proxy :: Proxy String) inputPath
     -- GenesisTestTC -> readInputTestCase @(GenesisTest ByronBlock (PointSchedule ByronBlock)) -- TODO
 
 -- | Read and parse a JSON-encoded test case either
 -- from a file or from stdin.
 readInputTestCase
-  :: forall a. (ToJSON a, FromJSON a, Arbitrary a)
-  => ViewerM ViewableTestCase
-readInputTestCase = do
-  input <- asks optInputPath
-    >>= (liftIO . maybe BS.getContents BS.readFile)
-
-  TestCase <$> case eitherDecode input of
+  :: forall a m. (MonadError String m, MonadIO m)
+  => (ToJSON a, FromJSON a, Arbitrary a)
+  => Proxy a -> Maybe FilePath -> m ViewableTestCase
+readInputTestCase _ inputPath = do
+  input <- liftIO $ maybe BS.getContents BS.readFile inputPath
+  fmap TestCase $ case eitherDecode input of
     Right ok -> pure (ok :: a)
     Left err -> throwError $ "Input decoding error: " <> err
 
 -- | Analyze the shrink tree of a value of any type that
 -- implements `Arbitrary`, `FromJSON`, and `ToJSON`;
 -- returns the resulting test case.
-analyzeShrinkTree :: ViewableTestCase -> ViewerM ViewableTestCase
-analyzeShrinkTree (TestCase testCase) = do
-  mode <- asks optMode
-  TestCase <$> case mode of
-    ShowDescendant -> do
-      shrinkIndex <- asks optShrinkIndex
-      maybe (throwError "Descendant does not exist. :(") pure $
-        lookup shrinkIndex $ arbitraryShrinkTree testCase
+analyzeShrinkTree
+  :: (Monad m)
+  => Mode -> ShrinkIndex -> ViewableTestCase -> ExceptT String m ViewableTestCase
+analyzeShrinkTree mode shrinkIndex (TestCase testCase) = fmap TestCase $
+  case mode of
+    ShowDescendant -> failWith "Descendant does not exist. :(" $
+      lookup shrinkIndex $ arbitraryShrinkTree testCase
 
-writeOutputTestCase :: ViewableTestCase -> ViewerM ()
-writeOutputTestCase (TestCase testCase) = do
+writeOutputTestCase
+  :: (MonadIO m) => Maybe FilePath -> ViewableTestCase -> m ()
+writeOutputTestCase outputPath (TestCase testCase) = do
   let bytes = encodePretty testCase
-  outputPath <- asks optOutputPath
   liftIO $ case outputPath of
     Nothing -> BS.putStr bytes >> putStrLn ""
     Just oPath -> BS.writeFile oPath bytes
