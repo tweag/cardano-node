@@ -66,6 +66,8 @@ import           ShrinkIndex (ShrinkIndex, ShrinkTree, arbitraryShrinkTree)
 import qualified ShrinkIndex as Ix
 import System.IO (hPutStrLn, stderr)
 
+data TestResult = TestSuccess | TestFailure
+
 instance Arbitrary (GenesisTest TestBlock (PointSchedule TestBlock))
 
 buildPeerMap :: PortNumber -> PointSchedule blk -> Map PeerId PortNumber
@@ -153,18 +155,18 @@ main = do
         chain
   case res of
     Left _ -> exitWithStatus InternalError
-    Right prop ->
-      let updatedIndex = updateShrinkIndex tree prop inputIndex
-      in case (prop, inputIndex, updatedIndex) of
+    Right testRes ->
+      let updatedIndex = updateShrinkIndex tree testRes inputIndex
+      in case (testRes, inputIndex, updatedIndex) of
         -- Test pass.
-        (True, Nothing, _) -> exitWithStatus Success
+        (TestSuccess, Nothing, _) -> exitWithStatus Success
         -- Local test pass.
-        (True, _, Just ix) -> do
+        (TestSuccess, _, Just ix) -> do
           hPutStrLn stderr $ "Continue shrinking with index: " <> show ix
           print ix
           exitWithStatus $ Flags $ S.singleton ContinueShrinking
         -- Local test pass exhausting the shrinking branch
-        (True, Just ix, Nothing) -> do
+        (TestSuccess, Just ix, Nothing) -> do
           case Ix.parent ix of
             Just ix' -> do
               hPutStrLn stderr $ "Discovered minimal counterexample on parent index: " <> show ix'
@@ -177,11 +179,11 @@ main = do
               exitWithStatus $ Flags $ S.singleton TestFailed
             -- If input index is empty, this is a test pass.
             Nothing -> exitWithStatus Success
-        (False, _, Just ix) -> do
+        (TestFailure, _, Just ix) -> do
           hPutStrLn stderr $ "Continue shrinking with index: " <> show ix
           print ix
           exitWithStatus $ Flags $ S.fromList [TestFailed, ContinueShrinking]
-        (False, Just ix, Nothing) -> do
+        (TestFailure, Just ix, Nothing) -> do
           hPutStrLn stderr $ "Found minimal counterexample with current index: " <> show ix
           print ix
           when (isJust $ optMinimalTestOutput opts) $
@@ -195,7 +197,7 @@ runServer :: PortNumber
           -> FilePath
           -> FilePath
           -> GenesisTest TestBlock (PointSchedule TestBlock)
-          -> IO Bool
+          -> IO TestResult
 runServer firstPort socketPath outputTopologyPath chain = do
   let ps = gtSchedule chain
       peerMap = buildPeerMap firstPort ps
@@ -318,7 +320,9 @@ runServer firstPort socketPath outputTopologyPath chain = do
   -- Return the test's acceptance criteria.
   -- This should be parsed out of the test file parameter, but is currently
   -- hard coded for convenience.
-  pure $ not . hashOnTrunk . AF.headHash $ svSelectedChain sv
+  pure $ case not . hashOnTrunk . AF.headHash $ svSelectedChain sv of
+    False -> TestFailure
+    True -> TestSuccess
 
 
 --------------------------------------------------------------------------------
@@ -357,14 +361,14 @@ rollbackSchedule n blockTree =
     banalSchedulePoints' block = [scheduleTipPoint block, scheduleHeaderPoint block, scheduleBlockPoint block]
 
 -- | Update a possibly absent 'ShrinkIndex' according to a property test result.
-updateShrinkIndex :: ShrinkTree a -> Bool -> Maybe ShrinkIndex -> Maybe ShrinkIndex
-updateShrinkIndex tree prop maybeIx = case (prop, maybeIx) of
+updateShrinkIndex :: ShrinkTree a -> TestResult -> Maybe ShrinkIndex -> Maybe ShrinkIndex
+updateShrinkIndex tree res maybeIx = case (res, maybeIx) of
         -- A direct test pass does not need shrinking
-        (True, Nothing) -> Nothing
+        (TestSuccess, Nothing) -> Nothing
         -- A test pass with a shrink index.
-        (True, Just ix) | ix == mempty -> Nothing
+        (TestSuccess, Just ix) | ix == mempty -> Nothing
                         | otherwise -> Ix.succ tree ix
                       
         -- When the test fails, stretch
-        (False, Nothing) -> Ix.stretch tree mempty
-        (False, Just ix) -> Ix.stretch tree ix
+        (TestFailure, Nothing) -> Ix.stretch tree mempty
+        (TestFailure, Just ix) -> Ix.stretch tree ix
