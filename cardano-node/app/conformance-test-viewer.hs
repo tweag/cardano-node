@@ -4,7 +4,6 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE FlexibleContexts #-}
 
 module Main (main) where
@@ -14,8 +13,7 @@ import           Prelude hiding (lookup)
 import           Control.Error.Util (failWith)
 import           Control.Monad.Except (ExceptT(), runExceptT, throwError, MonadError(..))
 import           Control.Monad.IO.Class (MonadIO(..), liftIO)
-import           Control.Monad.Reader (ReaderT(), asks, runReaderT)
-import           Data.Aeson (eitherDecode, encode, FromJSON(..), ToJSON(..))
+import           Data.Aeson (eitherDecode, FromJSON(..), ToJSON(..))
 import           Data.Aeson.Encode.Pretty (encodePretty)
 import qualified Data.ByteString.Lazy as BS
 import           Data.Char (isDigit)
@@ -27,11 +25,10 @@ import           Options.Applicative
 import           Ouroboros.Consensus.Byron.Ledger.Block
 import           ShrinkIndex
 import           System.Environment (getArgs)
-import           System.Exit
-import           System.IO (hPutStr, hPutStrLn, hPutChar, stderr)
+import           System.IO (hPutStr, hPutStrLn, stderr)
 import           Test.Consensus.OrphanInstances ()
 import           Test.Consensus.PointSchedule (GenesisTest, PointSchedule)
-import           Test.QuickCheck (Arbitrary(..), Gen)
+import           Test.QuickCheck (Arbitrary(..))
 import           Text.Read (readEither)
 
 nameString, versionString :: String
@@ -143,7 +140,7 @@ getInputTestCase testCaseType inputPath = do
   case testCaseType of
     IntTC         -> readInputTestCase (Proxy :: Proxy Int)    inputPath
     StringTC      -> readInputTestCase (Proxy :: Proxy String) inputPath
-    -- GenesisTestTC -> readInputTestCase @(GenesisTest ByronBlock (PointSchedule ByronBlock)) -- TODO
+    GenesisTestTC -> error "Genesis test not yet implemented!" -- readInputTestCase @(GenesisTest ByronBlock (PointSchedule ByronBlock)) -- TODO
 
 -- | Read and parse a JSON-encoded test case either
 -- from a file or from stdin.
@@ -190,8 +187,8 @@ parseShrinkIndexOption =
   where bothDigits = on (&&) isDigit
 
 parseTestCaseType :: String -> Either String TestCaseType
-parseTestCaseType str = case str of
+parseTestCaseType symbol = case symbol of
   "int"     -> Right IntTC
   "string"  -> Right StringTC
   "genesis" -> Right GenesisTestTC
-  _ -> Left $ "Unrecognized test case type \"" <> str <> "\""
+  _ -> Left $ "Unrecognized test case type \"" <> symbol <> "\""
