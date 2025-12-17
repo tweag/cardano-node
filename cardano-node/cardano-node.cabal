@@ -360,6 +360,22 @@ executable conformance-test-runner
                       , QuickCheck
                       , cardano-api
 
+executable conformance-test-viewer
+  import:               project-config
+  hs-source-dirs:       app
+  main-is:              conformance-test-viewer.hs
+  build-depends:        base
+                      , cardano-node:conformance-testlib
+                      , aeson
+                      , aeson-pretty
+                      , bytestring
+                      , errors
+                      , mtl
+                      , optparse-applicative
+                      , ouroboros-consensus-cardano
+                      , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
+                      , QuickCheck
+
 test-suite conformance-testlib-test
   import:               project-config
   hs-source-dirs:       test
