@@ -67,10 +67,9 @@ options = info
 
 optionParser :: Parser Options
 optionParser = Options
-  <$> (argument (Just <$> str)
+  <$> (optional $ argument str
     (mconcat
         [ metavar "FILE_PATH"
-        , value Nothing
         , help "File path for the test case file (JSON)"
         ]))
   <*> (option (eitherReader parseShrinkIndexOption)
@@ -80,10 +79,9 @@ optionParser = Options
         , value (path [])
         , help "An index pointing to a shrunken test case"
         ]))
-  <*> (option (Just <$> str)
+  <*> (optional $ option str
     (long "output" <> mconcat
         [ metavar "FILE_PATH"
-        , value Nothing
         , help "File path for writing output"
         ]))
   <*> (option (eitherReader parseTestCaseType)
