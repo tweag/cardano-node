@@ -338,6 +338,10 @@ hashOnTrunk (BlockHash hash) = all (== 0) $ unTestHash hash
 -- chain of the given block tree.
 --
 -- PRECONDITION: Block tree with at least one alternative chain.
+-- NOTE: This function is currently used to hard code the test case generation,
+-- which is not part of the @test-runner@ functionality.
+-- TODO: Make sure to handle the previous precondition appropriately when
+-- implementing @testgen@.
 rollbackSchedule :: AF.HasHeader blk => Int -> BlockTree blk -> PointSchedule blk
 rollbackSchedule n blockTree =
     let branch = case btBranches blockTree of
