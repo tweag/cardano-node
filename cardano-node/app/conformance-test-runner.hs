@@ -36,7 +36,8 @@ import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Map (Map)
 import qualified Data.Map as M
 import qualified Data.Map.Merge.Lazy as M
-import           Data.Maybe (fromJust, isJust)
+import           Data.Maybe (fromJust, isJust, isNothing)
+import           Data.Set (Set)
 import qualified Data.Set as S
 import           Data.Traversable
 import qualified Network.Socket as Socket
@@ -64,11 +65,52 @@ import           Query
 import           Server (run)
 import           ShrinkIndex (ShrinkIndex, ShrinkTree, arbitraryShrinkTree)
 import qualified ShrinkIndex as Ix
-import System.IO (hPutStrLn, stderr)
-
-data TestResult = TestSuccess | TestFailure
 
 instance Arbitrary (GenesisTest TestBlock (PointSchedule TestBlock))
+
+data TestResult = TestSuccess | TestFailure deriving Eq
+
+-- | This function makes implicit reference to the fact that 'ExitCodes.Success'
+-- is defined as the empty status flag pattern.
+testResultToFlag :: TestResult -> Set StatusFlag
+testResultToFlag result = case result of
+  TestFailure -> S.singleton TestFailed
+  TestSuccess -> mempty
+
+-- | A 'ShrinkIndex' signaling whether shrinking should proceed.
+data ContinuationIndex = ContinueShrinkingWith ShrinkIndex
+                       | ShrinkNoMore ShrinkIndex
+
+-- | Update a possibly absent 'ShrinkIndex' according to the 'TestResult'
+-- and signal if shrinking should proceed.
+-- POSTCONDITION: Any 'ShrinkIndex' within a 'ContinuationIndex'
+-- corresponds to a node on the given 'ShrinkTree'.
+indexUpdate :: TestResult
+            -> ShrinkTree a
+            -> Maybe ShrinkIndex
+            -> ContinuationIndex
+indexUpdate res tree inputIndex = case (res, inputIndex) of
+  -- A direct (global) test pass.
+  (TestSuccess, Nothing) -> ShrinkNoMore mempty
+  -- Test pass with a shrink index.
+  (TestSuccess, Just ix)
+    -- Global test pass (in disguise).
+    | ix == mempty -> ShrinkNoMore mempty
+    -- Local test pass (current node is not a property counterexample).
+    | otherwise -> case Ix.succ tree ix of
+      -- If sibling nodes have been exhausted, rollback
+      -- to the parent index. 'fromJust' is safe here
+      -- because the only index without parent is the
+      -- empty index.
+      Nothing -> ShrinkNoMore $ fromJust $ Ix.parent ix
+      Just ix' -> ContinueShrinkingWith ix'
+  -- When the test fails, try to stretch.
+  (TestFailure, Nothing) -> case Ix.stretch tree mempty of
+                              Nothing -> ShrinkNoMore mempty
+                              Just ix -> ContinueShrinkingWith ix
+  (TestFailure, Just ix) -> case Ix.stretch tree ix of
+                              Nothing -> ShrinkNoMore ix
+                              Just ix' -> ContinueShrinkingWith ix'
 
 buildPeerMap :: PortNumber -> PointSchedule blk -> Map PeerId PortNumber
 buildPeerMap firstPort = M.fromList . flip zip [firstPort ..] . getPeerIds . psSchedule
@@ -155,40 +197,26 @@ main = do
         chain
   case res of
     Left _ -> exitWithStatus InternalError
-    Right testRes ->
-      let updatedIndex = updateShrinkIndex tree testRes inputIndex
-      in case (testRes, inputIndex, updatedIndex) of
-        -- Test pass.
-        (TestSuccess, Nothing, _) -> exitWithStatus Success
-        -- Local test pass.
-        (TestSuccess, _, Just ix) -> do
-          hPutStrLn stderr $ "Continue shrinking with index: " <> show ix
+    Right testRes -> do
+      mightContinueShrinking <- case indexUpdate testRes tree inputIndex of
+        ContinueShrinkingWith ix -> do
           print ix
-          exitWithStatus $ Flags $ S.singleton ContinueShrinking
-        -- Local test pass exhausting the shrinking branch
-        (TestSuccess, Just ix, Nothing) -> do
-          case Ix.parent ix of
-            Just ix' -> do
-              hPutStrLn stderr $ "Discovered minimal counterexample on parent index: " <> show ix'
-              print ix'
-              when (isJust $ optMinimalTestOutput opts) $
-                -- 'fromJust' is safe here because the parent of an index generated
-                -- by 'updateShrinkIndex' is always on the tree
-                encodeFile (fromJust $ optMinimalTestOutput opts) (fromJust (Ix.lookup ix' tree))
-              -- TODO: Missing flag for this case!!!
-              exitWithStatus $ Flags $ S.singleton TestFailed
-            -- If input index is empty, this is a test pass.
-            Nothing -> exitWithStatus Success
-        (TestFailure, _, Just ix) -> do
-          hPutStrLn stderr $ "Continue shrinking with index: " <> show ix
-          print ix
-          exitWithStatus $ Flags $ S.fromList [TestFailed, ContinueShrinking]
-        (TestFailure, Just ix, Nothing) -> do
-          hPutStrLn stderr $ "Found minimal counterexample with current index: " <> show ix
-          print ix
-          when (isJust $ optMinimalTestOutput opts) $
-            encodeFile (fromJust $ optMinimalTestOutput opts) chain
-          exitWithStatus $ Flags $ S.singleton TestFailed
+          pure $ S.singleton ContinueShrinking
+        -- This following case includes a minimal counterexample being found or
+        -- a global test pass. A check for the latter case is needed to
+        -- account for the edge case were the root node is a minimal
+        -- counterexample. 
+        ShrinkNoMore ix -> do
+          let isGlobalPass =
+                testRes == TestSuccess &&
+                 (isNothing inputIndex || inputIndex == Just mempty)
+          case isJust (optMinimalTestOutput opts) && not isGlobalPass of
+            -- 'fromJust' is safe here because the parent of an index generated
+            -- by 'indexUpdate' is always on the tree
+            True -> encodeFile (fromJust $ optMinimalTestOutput opts) (fromJust (Ix.lookup ix tree))
+            False -> print ix
+          pure mempty
+      exitWithStatus . Flags $ testResultToFlag testRes <> mightContinueShrinking
 
 zipMaps :: Ord k => Map k a -> Map k b -> Map k (a, b)
 zipMaps = M.merge M.dropMissing M.dropMissing $ M.zipWithMatched $ const (,)
@@ -363,16 +391,3 @@ rollbackSchedule n blockTree =
     banalSchedulePoints = concatMap banalSchedulePoints' . toOldestFirst
     banalSchedulePoints' :: blk -> [SchedulePoint blk]
     banalSchedulePoints' block = [scheduleTipPoint block, scheduleHeaderPoint block, scheduleBlockPoint block]
-
--- | Update a possibly absent 'ShrinkIndex' according to a property test result.
-updateShrinkIndex :: ShrinkTree a -> TestResult -> Maybe ShrinkIndex -> Maybe ShrinkIndex
-updateShrinkIndex tree res maybeIx = case (res, maybeIx) of
-        -- A direct test pass does not need shrinking
-        (TestSuccess, Nothing) -> Nothing
-        -- A test pass with a shrink index.
-        (TestSuccess, Just ix) | ix == mempty -> Nothing
-                        | otherwise -> Ix.succ tree ix
-                      
-        -- When the test fails, stretch
-        (TestFailure, Nothing) -> Ix.stretch tree mempty
-        (TestFailure, Just ix) -> Ix.stretch tree ix
