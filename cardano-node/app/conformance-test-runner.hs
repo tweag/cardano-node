@@ -91,7 +91,7 @@ tryContinueIndex :: (ShrinkIndex -> Maybe ShrinkIndex) -- ^ Updating function.
 tryContinueIndex upd f ix = case upd ix of
   Nothing -> ShrinkNoMore $ f ix
   Just ix' -> ContinueShrinkingWith ix'
-  
+
 -- | Update a possibly absent 'ShrinkIndex' according to the 'TestResult'
 -- and signal if shrinking should proceed.
 -- POSTCONDITION: Any 'ShrinkIndex' within a 'ContinuationIndex'
@@ -182,15 +182,13 @@ main = do
 
   let tree = arbitraryShrinkTree chain0
       inputIndex = optShrinkIndex opts
-  chain <- case inputIndex of
-    -- Note that both no index and the empty index should
-    -- return the original chain. See [NOTE: shrink-index-properties]
-    Nothing -> pure chain0
-    Just ix -> case Ix.lookup ix tree of
-      Nothing -> do
-        putStrLn "Incorrect shrink index"
-        exitWithStatus BadUsage
-      Just chain' -> pure chain'
+  -- Note that both no index and the empty index must
+  -- return the original chain. See [NOTE: shrink-index-properties]
+  chain <- case Ix.lookup (fold inputIndex) tree of
+    Nothing -> do
+      putStrLn "Incorrect shrink index"
+      exitWithStatus BadUsage
+    Just chain' -> pure chain'
 
   res <-
     try @_ @SomeException $
@@ -209,7 +207,7 @@ main = do
         -- This following case includes a minimal counterexample being found or
         -- a global test success. A check for the latter case is needed to
         -- account for the edge case were the root node is a minimal
-        -- counterexample. 
+        -- counterexample.
         ShrinkNoMore ix -> do
           let isGlobalSuccess =
                 testRes == TestSuccess &&
