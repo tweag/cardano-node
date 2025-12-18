@@ -207,18 +207,18 @@ main = do
           print ix
           pure $ S.singleton ContinueShrinking
         -- This following case includes a minimal counterexample being found or
-        -- a global test pass. A check for the latter case is needed to
+        -- a global test success. A check for the latter case is needed to
         -- account for the edge case were the root node is a minimal
         -- counterexample. 
         ShrinkNoMore ix -> do
-          let isGlobalPass =
+          let isGlobalSuccess =
                 testRes == TestSuccess &&
                  (isNothing inputIndex || inputIndex == Just mempty)
-          case isJust (optMinimalTestOutput opts) && not isGlobalPass of
-            -- 'fromJust' is safe here because the parent of an index generated
-            -- by 'indexUpdate' is always on the tree
-            True -> encodeFile (fromJust $ optMinimalTestOutput opts) (fromJust (Ix.lookup ix tree))
-            False -> print ix
+          case (optMinimalTestOutput opts, not isGlobalSuccess) of
+            -- 'fromJust' is safe here because an index generated
+            -- by 'indexUpdate' is always on the tree.
+            (Just minimalTestFilePath, True) -> encodeFile minimalTestFilePath (fromJust (Ix.lookup ix tree))
+            _ -> print ix
           pure mempty
       exitWithStatus . Flags $ testResultToFlag testRes <> mightContinueShrinking
 
