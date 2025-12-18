@@ -36,7 +36,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Map (Map)
 import qualified Data.Map as M
 import qualified Data.Map.Merge.Lazy as M
-import           Data.Maybe (fromJust, isJust, isNothing)
+import           Data.Maybe (fromJust, isNothing)
 import           Data.Set (Set)
 import qualified Data.Set as S
 import           Data.Traversable
@@ -122,9 +122,7 @@ indexUpdate res tree ix = case res of
     | ix == mempty -> ShrinkNoMore mempty
     -- A (local) test pass, i.e. shrunk input is not a property counterexample.
     -- If sibling nodes have been exhausted, rollback to the parent index.
-    -- 'fromJust' is safe here because the only index without parent
-    -- is the empty index.
-    | otherwise -> tryContinueIndex (Ix.succ tree) (fromJust . Ix.parent) ix
+    | otherwise -> tryContinueIndex (Ix.succ tree) (fold . Ix.parent) ix
   -- When the test fails, try to stretch.
   TestFailure -> tryContinueIndex (Ix.stretch tree) id ix
 
@@ -224,11 +222,9 @@ main = do
           let isGlobalSuccess =
                 testRes == TestSuccess &&
                  (isNothing inputIndex || inputIndex == Just mempty)
-          case (optMinimalTestOutput opts, not isGlobalSuccess) of
-            -- 'fromJust' is safe here because an index generated
-            -- by 'indexUpdate' is always on the tree.
-            (Just minimalTestFilePath, True) -> encodeFile minimalTestFilePath (fromJust (Ix.lookup ix tree))
-            (Nothing, True) -> print $ encode $ fromJust (Ix.lookup ix tree)
+          case (optMinimalTestOutput opts, not isGlobalSuccess, Ix.lookup ix tree) of
+            (Just minimalTestFilePath, True, Just chain') -> encodeFile minimalTestFilePath chain'
+            (Nothing, True, Just chain') -> print $ encode chain'
             _ -> pure ()
           pure mempty
       exitWithStatus . Flags $ testResultToFlag testRes <> mightContinueShrinking
