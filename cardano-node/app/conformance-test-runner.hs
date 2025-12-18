@@ -79,7 +79,7 @@ import qualified ShrinkIndex as Ix
 shrinkGenesisTest :: GenesisTestFull blk -> [GenesisTestFull blk]
 shrinkGenesisTest _ = []
 
-data TestResult = TestSuccess | TestFailure deriving Eq
+data TestResult = TestSuccess | TestFailure deriving (Eq, Ord, Show, Enum, Bounded)
 
 -- | This function makes implicit reference to the fact that 'ExitCodes.Success'
 -- is defined as the empty status flag pattern.
@@ -95,6 +95,7 @@ boolToTestResult False = TestFailure
 -- | A 'ShrinkIndex' signaling whether shrinking should proceed.
 data ContinuationIndex = ContinueShrinkingWith ShrinkIndex
                        | ShrinkNoMore ShrinkIndex
+                       deriving (Eq, Ord, Show)
 
 -- | Try to get the following index from the updating function to continue
 -- shrinking. On failure, signal the end of shrinking and apply the given
