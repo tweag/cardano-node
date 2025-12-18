@@ -114,23 +114,19 @@ tryContinueIndex upd f ix = case upd ix of
 -- corresponds to a node on the given 'ShrinkTree'.
 indexUpdate :: TestResult
             -> ShrinkTree a
-            -> Maybe ShrinkIndex
+            -> ShrinkIndex
             -> ContinuationIndex
-indexUpdate res tree inputIndex = case (res, inputIndex) of
-  -- A direct (global) test pass.
-  (TestSuccess, Nothing) -> ShrinkNoMore mempty
-  -- Test pass with a shrink index.
-  (TestSuccess, Just ix)
-    -- Global test pass (in disguise).
+indexUpdate res tree ix = case res of
+  TestSuccess
+    -- A (global) test pass.
     | ix == mempty -> ShrinkNoMore mempty
-    -- Local test pass (current node is not a property counterexample).
+    -- A (local) test pass, i.e. shrunk input is not a property counterexample.
     -- If sibling nodes have been exhausted, rollback to the parent index.
     -- 'fromJust' is safe here because the only index without parent
     -- is the empty index.
     | otherwise -> tryContinueIndex (Ix.succ tree) (fromJust . Ix.parent) ix
   -- When the test fails, try to stretch.
-  (TestFailure, Nothing) -> tryContinueIndex (Ix.stretch tree) id mempty
-  (TestFailure, Just ix) -> tryContinueIndex (Ix.stretch tree) id ix
+  TestFailure -> tryContinueIndex (Ix.stretch tree) id ix
 
 buildPeerMap :: PortNumber -> PointSchedule blk -> Map PeerId PortNumber
 buildPeerMap firstPort = M.fromList . flip zip [firstPort ..] . getPeerIds . psSchedule
@@ -216,7 +212,7 @@ main = do
   case res of
     Left _ -> exitWithStatus InternalError
     Right testRes -> do
-      mightContinueShrinking <- case indexUpdate testRes tree inputIndex of
+      mightContinueShrinking <- case indexUpdate testRes tree (fold inputIndex) of
         ContinueShrinkingWith ix -> do
           print ix
           pure $ S.singleton ContinueShrinking
