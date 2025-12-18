@@ -57,16 +57,27 @@ import           Test.Consensus.PointSchedule
 import           Test.Consensus.PointSchedule.Peers (PeerId (..), getPeerIds, peersOnlyHonest)
 import           Test.Consensus.PointSchedule.SinglePeer (SchedulePoint (..), scheduleBlockPoint,
                    scheduleHeaderPoint, scheduleTipPoint)
-import           Test.QuickCheck (Arbitrary, generate, scale)
+import           Test.QuickCheck (generate, scale)
 import           Test.Util.TestBlock (TestBlock, unTestHash)
 
 import           ExitCodes
 import           Query
 import           Server (run)
-import           ShrinkIndex (ShrinkIndex, ShrinkTree, arbitraryShrinkTree)
+import           ShrinkIndex (ShrinkIndex, ShrinkTree, makeShrinkTree)
 import qualified ShrinkIndex as Ix
 
-instance Arbitrary (GenesisTest TestBlock (PointSchedule TestBlock))
+-- | Dummy shrinker for all 'GenesisTest'.
+--
+-- NOTE: Shrinkers for 'GenesisTests' are allowed to inspect the output value
+-- (the resulting 'StateView') to increase their expressivity.
+-- It is argued that this makes sense if the “run” phase is particularly
+-- expensive. See:
+-- ouroboros-consensus/ouroboros-consensus/src/unstable-testlib/Test/Util/QuickCheck.hs
+--
+-- However, this considerations seem to not apply in this setting as
+-- such a state view is derived from protocol messages. 
+shrinkGenesisTest :: GenesisTestFull blk -> [GenesisTestFull blk]
+shrinkGenesisTest _ = []
 
 data TestResult = TestSuccess | TestFailure deriving Eq
 
@@ -184,7 +195,7 @@ main = do
     gt <- genChains $ pure 1
     pure $ gt {gtSchedule = rollbackSchedule 1 $ gtBlockTree gt}
 
-  let tree = arbitraryShrinkTree chain0
+  let tree = makeShrinkTree shrinkGenesisTest chain0
       inputIndex = optShrinkIndex opts
   -- Note that both no index and the empty index must
   -- return the original chain. See [NOTE: shrink-index-properties]
