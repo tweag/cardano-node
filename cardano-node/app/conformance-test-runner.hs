@@ -231,7 +231,8 @@ main = do
             -- 'fromJust' is safe here because an index generated
             -- by 'indexUpdate' is always on the tree.
             (Just minimalTestFilePath, True) -> encodeFile minimalTestFilePath (fromJust (Ix.lookup ix tree))
-            _ -> print ix
+            (Nothing, True) -> print ix
+            _ -> pure ()
           pure mempty
       exitWithStatus . Flags $ testResultToFlag testRes <> mightContinueShrinking
 
