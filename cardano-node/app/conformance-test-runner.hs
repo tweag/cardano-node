@@ -81,6 +81,17 @@ testResultToFlag result = case result of
 data ContinuationIndex = ContinueShrinkingWith ShrinkIndex
                        | ShrinkNoMore ShrinkIndex
 
+-- | Try to get the following index from the updating function to continue
+-- shrinking. On failure, signal the end of shrinking and apply the given
+-- transformation to the input index.
+tryContinueIndex :: (ShrinkIndex -> Maybe ShrinkIndex) -- ^ Updating function.
+                 -> (ShrinkIndex -> ShrinkIndex) -- ^ Failed update index transformation.
+                 -> ShrinkIndex
+                 -> ContinuationIndex
+tryContinueIndex upd f ix = case upd ix of
+  Nothing -> ShrinkNoMore $ f ix
+  Just ix' -> ContinueShrinkingWith ix'
+  
 -- | Update a possibly absent 'ShrinkIndex' according to the 'TestResult'
 -- and signal if shrinking should proceed.
 -- POSTCONDITION: Any 'ShrinkIndex' within a 'ContinuationIndex'
@@ -97,20 +108,13 @@ indexUpdate res tree inputIndex = case (res, inputIndex) of
     -- Global test pass (in disguise).
     | ix == mempty -> ShrinkNoMore mempty
     -- Local test pass (current node is not a property counterexample).
-    | otherwise -> case Ix.succ tree ix of
-      -- If sibling nodes have been exhausted, rollback
-      -- to the parent index. 'fromJust' is safe here
-      -- because the only index without parent is the
-      -- empty index.
-      Nothing -> ShrinkNoMore $ fromJust $ Ix.parent ix
-      Just ix' -> ContinueShrinkingWith ix'
+    -- If sibling nodes have been exhausted, rollback to the parent index.
+    -- 'fromJust' is safe here because the only index without parent
+    -- is the empty index.
+    | otherwise -> tryContinueIndex (Ix.succ tree) (fromJust . Ix.parent) ix
   -- When the test fails, try to stretch.
-  (TestFailure, Nothing) -> case Ix.stretch tree mempty of
-                              Nothing -> ShrinkNoMore mempty
-                              Just ix -> ContinueShrinkingWith ix
-  (TestFailure, Just ix) -> case Ix.stretch tree ix of
-                              Nothing -> ShrinkNoMore ix
-                              Just ix' -> ContinueShrinkingWith ix'
+  (TestFailure, Nothing) -> tryContinueIndex (Ix.stretch tree) id mempty
+  (TestFailure, Just ix) -> tryContinueIndex (Ix.stretch tree) id ix
 
 buildPeerMap :: PortNumber -> PointSchedule blk -> Map PeerId PortNumber
 buildPeerMap firstPort = M.fromList . flip zip [firstPort ..] . getPeerIds . psSchedule
