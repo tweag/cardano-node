@@ -77,6 +77,10 @@ testResultToFlag result = case result of
   TestFailure -> S.singleton TestFailed
   TestSuccess -> mempty
 
+boolToTestResult :: Bool -> TestResult
+boolToTestResult True = TestSuccess
+boolToTestResult False = TestFailure
+
 -- | A 'ShrinkIndex' signaling whether shrinking should proceed.
 data ContinuationIndex = ContinueShrinkingWith ShrinkIndex
                        | ShrinkNoMore ShrinkIndex
@@ -350,9 +354,7 @@ runServer firstPort socketPath outputTopologyPath chain = do
   -- Return the test's acceptance criteria.
   -- This should be parsed out of the test file parameter, but is currently
   -- hard coded for convenience.
-  pure $ case not . hashOnTrunk . AF.headHash $ svSelectedChain sv of
-    False -> TestFailure
-    True -> TestSuccess
+  pure . boolToTestResult $ not . hashOnTrunk . AF.headHash $ svSelectedChain sv
 
 
 --------------------------------------------------------------------------------
