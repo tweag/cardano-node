@@ -27,7 +27,7 @@ import           Ouroboros.Network.PeerSelection.RelayAccessPoint (PortNumber)
 import           Ouroboros.Network.PeerSelection.State.LocalRootPeers (HotValency (..),
                    WarmValency (..))
 
-import           Control.Monad (unless)
+import           Control.Monad (unless, when)
 import           Control.Tracer (Tracer (..), nullTracer, traceWith)
 import           Data.Aeson (Value, encode, encodeFile, object, throwDecode, (.=))
 import qualified Data.ByteString.Lazy.Char8 as BSL8
@@ -36,7 +36,8 @@ import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Map (Map)
 import qualified Data.Map as M
 import qualified Data.Map.Merge.Lazy as M
-import           Data.Maybe (fromJust)
+import           Data.Maybe (fromJust, isNothing)
+import           Data.Set (Set)
 import qualified Data.Set as S
 import           Data.Traversable
 import qualified Network.Socket as Socket
@@ -62,6 +63,68 @@ import           Test.Util.TestBlock (TestBlock, unTestHash)
 import           ExitCodes
 import           Query
 import           Server (run)
+import           ShrinkIndex (ShrinkIndex, ShrinkTree, makeShrinkTree)
+import qualified ShrinkIndex as Ix
+
+-- | Dummy shrinker for all 'GenesisTest'.
+--
+-- NOTE: Shrinkers for 'GenesisTests' are allowed to inspect the output value
+-- (the resulting 'StateView') to increase their expressivity.
+-- It is argued that this makes sense if the “run” phase is particularly
+-- expensive. See:
+-- ouroboros-consensus/ouroboros-consensus/src/unstable-testlib/Test/Util/QuickCheck.hs
+--
+-- However, this considerations seem to not apply in this setting as
+-- such a state view is derived from protocol messages. 
+shrinkGenesisTest :: GenesisTestFull blk -> [GenesisTestFull blk]
+shrinkGenesisTest _ = []
+
+data TestResult = TestSuccess | TestFailure deriving (Eq, Ord, Show, Enum, Bounded)
+
+-- | This function makes implicit reference to the fact that 'ExitCodes.Success'
+-- is defined as the empty status flag pattern.
+testResultToFlag :: TestResult -> Set StatusFlag
+testResultToFlag result = case result of
+  TestFailure -> S.singleton TestFailed
+  TestSuccess -> mempty
+
+boolToTestResult :: Bool -> TestResult
+boolToTestResult True = TestSuccess
+boolToTestResult False = TestFailure
+
+-- | A 'ShrinkIndex' signaling whether shrinking should proceed.
+data ContinuationIndex = ContinueShrinkingWith ShrinkIndex
+                       | ShrinkNoMore ShrinkIndex
+                       deriving (Eq, Ord, Show)
+
+-- | Try to get the following index from the updating function to continue
+-- shrinking. On failure, signal the end of shrinking and apply the given
+-- transformation to the input index.
+tryContinueIndex :: (ShrinkIndex -> Maybe ShrinkIndex) -- ^ Updating function.
+                 -> (ShrinkIndex -> ShrinkIndex) -- ^ Failed update index transformation.
+                 -> ShrinkIndex
+                 -> ContinuationIndex
+tryContinueIndex upd f ix = case upd ix of
+  Nothing -> ShrinkNoMore $ f ix
+  Just ix' -> ContinueShrinkingWith ix'
+
+-- | Update a possibly absent 'ShrinkIndex' according to the 'TestResult'
+-- and signal if shrinking should proceed.
+-- POSTCONDITION: Any 'ShrinkIndex' within a 'ContinuationIndex'
+-- corresponds to a node on the given 'ShrinkTree'.
+indexUpdate :: TestResult
+            -> ShrinkTree a
+            -> ShrinkIndex
+            -> ContinuationIndex
+indexUpdate res tree ix = case res of
+  TestSuccess
+    -- A (global) test pass.
+    | ix == mempty -> ShrinkNoMore mempty
+    -- A (local) test pass, i.e. shrunk input is not a property counterexample.
+    -- If sibling nodes have been exhausted, rollback to the parent index.
+    | otherwise -> tryContinueIndex (Ix.succ tree) (fold . Ix.parent) ix
+  -- When the test fails, try to stretch.
+  TestFailure -> tryContinueIndex (Ix.stretch tree) id ix
 
 buildPeerMap :: PortNumber -> PointSchedule blk -> Map PeerId PortNumber
 buildPeerMap firstPort = M.fromList . flip zip [firstPort ..] . getPeerIds . psSchedule
@@ -117,26 +180,64 @@ main :: IO ()
 main = do
   args <- getArgs
   opts <- parseOptions args
+
+  -- The test should be parsed from `optTestFile`, but its chain and acceptance
+  -- criteria are hard coded for convenience until the @testgen@ utility is implemented.
+  -- Generate a random RollBack test chain. We divide the test size by 10 here
+  -- because 'TestBlock's have a hardcoded size of 100---anything longer will
+  -- crash when being deserialized.
+  chain0 <- generate $ scale (flip div 10) $ do
+    gt <- genChains $ pure 1
+    pure $ gt {gtSchedule = rollbackSchedule 1 $ gtBlockTree gt}
+
+  let tree = makeShrinkTree shrinkGenesisTest chain0
+      inputIndex = optShrinkIndex opts
+  -- Note that both no index and the empty index must
+  -- return the original chain. See [NOTE: shrink-index-properties]
+  chain <- case Ix.lookup (fold inputIndex) tree of
+    Nothing -> do
+      putStrLn "Incorrect shrink index"
+      exitWithStatus BadUsage
+    Just chain' -> pure chain'
+
   res <-
     try @_ @SomeException $
-      runServer (optPort opts) (optSocketPath opts) (optOutputTopologyFile opts)
-  exitWithStatus $ case res of
-    Left _ -> InternalError
-    Right True -> Success
-    Right False -> Flags $ S.singleton TestFailed
+      runServer
+        (optPort opts)
+        (optSocketPath opts)
+        (optOutputTopologyFile opts)
+        chain
+  case res of
+    Left _ -> exitWithStatus InternalError
+    Right testRes -> do
+      mightContinueShrinking <- case indexUpdate testRes tree (fold inputIndex) of
+        ContinueShrinkingWith ix -> do
+          print ix
+          pure $ S.singleton ContinueShrinking
+        -- This following case includes a minimal counterexample being found or
+        -- a global test success. A check for the latter case is needed to
+        -- account for the edge case were the root node is a minimal
+        -- counterexample.
+        ShrinkNoMore ix -> do
+          let isGlobalSuccess =
+                testRes == TestSuccess &&
+                 (isNothing inputIndex || inputIndex == Just mempty)
+          case (optMinimalTestOutput opts, not isGlobalSuccess, Ix.lookup ix tree) of
+            (Just minimalTestFilePath, True, Just chain') -> encodeFile minimalTestFilePath chain'
+            (Nothing, True, Just chain') -> print $ encode chain'
+            _ -> pure ()
+          pure mempty
+      exitWithStatus . Flags $ testResultToFlag testRes <> mightContinueShrinking
 
 zipMaps :: Ord k => Map k a -> Map k b -> Map k (a, b)
 zipMaps = M.merge M.dropMissing M.dropMissing $ M.zipWithMatched $ const (,)
 
-runServer :: PortNumber -> FilePath -> FilePath -> IO Bool
-runServer firstPort socketPath outputTopologyPath = do
-  -- Generate a random RollBack test chain. We divide the test size by 10 here
-  -- because 'TestBlock's have a hardcoded size of 100---anything longer will
-  -- crash when being deserialized.
-  chain <- generate $ scale (flip div 10) $ do
-    gt <- genChains $ pure 1
-    pure $ gt {gtSchedule = rollbackSchedule 1 $ gtBlockTree gt}
-
+runServer :: PortNumber
+          -> FilePath
+          -> FilePath
+          -> GenesisTest TestBlock (PointSchedule TestBlock)
+          -> IO TestResult
+runServer firstPort socketPath outputTopologyPath chain = do
   let ps = gtSchedule chain
       peerMap = buildPeerMap firstPort ps
 
@@ -256,7 +357,9 @@ runServer firstPort socketPath outputTopologyPath = do
   for_ peerServers $ uninterruptibleCancel . snd
 
   -- Return the test's acceptance criteria.
-  pure $ not . hashOnTrunk . AF.headHash $ svSelectedChain sv
+  -- This should be parsed out of the test file parameter, but is currently
+  -- hard coded for convenience.
+  pure . boolToTestResult $ not . hashOnTrunk . AF.headHash $ svSelectedChain sv
 
 
 --------------------------------------------------------------------------------
@@ -272,6 +375,10 @@ hashOnTrunk (BlockHash hash) = all (== 0) $ unTestHash hash
 -- chain of the given block tree.
 --
 -- PRECONDITION: Block tree with at least one alternative chain.
+-- NOTE: This function is currently used to hard code the test case generation,
+-- which is not part of the @test-runner@ functionality.
+-- TODO: Make sure to handle the previous precondition appropriately when
+-- implementing @testgen@.
 rollbackSchedule :: AF.HasHeader blk => Int -> BlockTree blk -> PointSchedule blk
 rollbackSchedule n blockTree =
     let branch = case btBranches blockTree of
