@@ -31,6 +31,8 @@ packages:
   trace-dispatcher
   trace-resources
   trace-forward
+--  ../ouroboros-consensus/ouroboros-consensus
+--  ../ouroboros-consensus/ouroboros-consensus-diffusion
 
 extra-packages: Cabal
 
@@ -96,3 +98,28 @@ if impl (ghc >= 9.12)
 
 constraints:
     hedgehog-extras == 0.7.0.0
+
+source-repository-package
+    type: git
+    location: https://github.com/tweag/ouroboros-network
+    tag: 8aa240eef5673d4f397f2037fa95b6fec250f89b
+    --sha256: sha256-rBWeRG83zu67KJGl+eYxB1tZ7GWyjeKaegVnk+YUcCE=
+    subdir:
+      ouroboros-network-protocols
+
+source-repository-package
+    type: git
+    location: https://github.com/tweag/ouroboros-consensus
+    tag: c65cc4b73f9bd17d67bb0d50caf1b0da2a650013
+    --sha256: sha256-mimWIpW6DBeYPjqPY+K1ZiPzyHJvlzYdtvU26BUZOAU=
+    subdir:
+      ouroboros-consensus
+      ouroboros-consensus-diffusion
+
+source-repository-package
+    type: git
+    location: https://github.com/tweag/cardano-api
+    tag: 9ffe8b21aff66862506fef05b9711e7d62c158fd
+    --sha256: sha256-yqOdD2gA+g146UjUGE+ynlPrzIvlci2JUm0fgPb8msg=
+    subdir:
+      cardano-api
