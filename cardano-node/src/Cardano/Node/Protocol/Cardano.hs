@@ -10,6 +10,7 @@
 
 module Cardano.Node.Protocol.Cardano
   ( mkSomeConsensusProtocolCardano
+  , mkCardanoProtocolParams
 
     -- * Errors
   , CardanoProtocolInstantiationError(..)
@@ -28,9 +29,9 @@ import qualified Cardano.Node.Protocol.Conway as Conway
 import qualified Cardano.Node.Protocol.Shelley as Shelley
 import           Cardano.Node.Protocol.Types
 import           Cardano.Node.Types
+import           Cardano.Protocol.Crypto (StandardCrypto)
 import           Cardano.Tracing.OrphanInstances.Byron ()
 import           Cardano.Tracing.OrphanInstances.Shelley ()
-import           Data.Function ((&))
 import           Ouroboros.Consensus.Cardano
 import qualified Ouroboros.Consensus.Cardano as Consensus
 import           Ouroboros.Consensus.Cardano.Condense ()
@@ -38,6 +39,8 @@ import qualified Ouroboros.Consensus.Cardano.Node as Consensus
 import           Ouroboros.Consensus.HardFork.Combinator.Condense ()
 
 import           Prelude
+
+import           Data.Function ((&))
 
 ------------------------------------------------------------------------------
 -- Real Cardano protocol
@@ -64,7 +67,19 @@ mkSomeConsensusProtocolCardano
   -> NodeCheckpointsConfiguration
   -> Maybe ProtocolFilepaths
   -> ExceptT CardanoProtocolInstantiationError IO SomeConsensusProtocol
-mkSomeConsensusProtocolCardano NodeByronProtocolConfiguration {
+mkSomeConsensusProtocolCardano b s a c hf cp m =
+  fmap (SomeConsensusProtocol CardanoBlockType . ProtocolInfoArgsCardano) $! mkCardanoProtocolParams b s a c hf cp m
+
+mkCardanoProtocolParams
+  :: NodeByronProtocolConfiguration
+  -> NodeShelleyProtocolConfiguration
+  -> NodeAlonzoProtocolConfiguration
+  -> NodeConwayProtocolConfiguration
+  -> NodeHardForkProtocolConfiguration
+  -> NodeCheckpointsConfiguration
+  -> Maybe ProtocolFilepaths
+  -> ExceptT CardanoProtocolInstantiationError IO (Consensus.CardanoProtocolParams StandardCrypto)
+mkCardanoProtocolParams NodeByronProtocolConfiguration {
                              npcByronGenesisFile,
                              npcByronGenesisFileHash,
                              npcByronReqNetworkMagic,
@@ -141,7 +156,7 @@ mkSomeConsensusProtocolCardano NodeByronProtocolConfiguration {
         readCheckpointsMap checkpointsConfiguration
 
     return $!
-      SomeConsensusProtocol CardanoBlockType $ ProtocolInfoArgsCardano $ Consensus.CardanoProtocolParams {
+      Consensus.CardanoProtocolParams {
         Consensus.byronProtocolParams =
         Consensus.ProtocolParamsByron {
           byronGenesis = byronGenesis,
