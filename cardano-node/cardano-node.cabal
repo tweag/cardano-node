@@ -330,37 +330,38 @@ library conformance-testlib
                       , io-classes
                       , cardano-node
                       , cardano-api
+                      , ouroboros-consensus-cardano
 
 executable conformance-test-runner
   import:               project-config
   hs-source-dirs:       app
   main-is:              conformance-test-runner.hs
   build-depends:        base
-                      , containers
-                      , optparse-applicative
-                      , ouroboros-network:{ouroboros-network}
-                      , ouroboros-consensus:{ouroboros-consensus, unstable-consensus-testlib}
-                      , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
-                      , ouroboros-network-api
-                      , aeson
-                      , bytestring
-                      , ouroboros-network-framework
-                      , network
-                      , network-mux
-                      , contra-tracer
-                      , resource-registry
-                      , serialise
-                      , ouroboros-network-protocols
-                      , cborg
-                      , ouroboros-consensus-diffusion
-                      , io-classes
-                      , cardano-node:{cardano-node, conformance-testlib}
-                      , QuickCheck
-                      , cardano-api
-                      , ouroboros-consensus-cardano
-                      , transformers
-                      , cardano-protocol-tpraos
-                      , errors
+                      ,  QuickCheck
+                      ,  aeson
+                      ,  bytestring
+                      ,  cardano-api
+                      ,  cardano-node:{cardano-node, conformance-testlib}
+                      ,  cardano-protocol-tpraos
+                      ,  cborg
+                      ,  containers
+                      ,  contra-tracer
+                      ,  errors
+                      ,  io-classes
+                      ,  network
+                      ,  network-mux
+                      ,  optparse-applicative
+                      ,  ouroboros-consensus-cardano
+                      ,  ouroboros-consensus-diffusion
+                      ,  ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
+                      ,  ouroboros-consensus:{ouroboros-consensus, unstable-consensus-testlib}
+                      ,  ouroboros-network-api
+                      ,  ouroboros-network-framework
+                      ,  ouroboros-network-protocols
+                      ,  ouroboros-network:{ouroboros-network}
+                      ,  resource-registry
+                      ,  serialise
+                      ,  transformers
 
 executable conformance-test-viewer
   import:               project-config
