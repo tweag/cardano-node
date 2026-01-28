@@ -1,19 +1,32 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Main (main) where
 
 import           Cardano.Api (ConsensusModeParams (..), EpochSlots (..), File (..), NetworkId (..))
 
+import           Cardano.Node.Configuration.POM (makeNodeConfiguration, ncProtocolConfig,
+                   parseNodeConfigurationFP)
+import           Cardano.Node.Protocol.Cardano (mkCardanoProtocolParams)
 import           Cardano.Node.Run ()
+import           Cardano.Node.Types (NodeProtocolConfiguration (..))
+import           Cardano.Protocol.Crypto (StandardCrypto)
 import           Ouroboros.Consensus.Block.Abstract
+import           Ouroboros.Consensus.Cardano (CardanoBlock)
+import           Ouroboros.Consensus.Cardano.Node (CardanoProtocolParams, protocolInfoCardano)
+import           Ouroboros.Consensus.Config (topLevelConfigStorage)
 import           Ouroboros.Consensus.MiniProtocol.ChainSync.Client.State
+import           Ouroboros.Consensus.Node.InitStorage (NodeInitStorage, nodeImmutableDbChunkInfo)
 import           Ouroboros.Consensus.Storage.ChainDB.API hiding (getTipPoint)
 import           Ouroboros.Consensus.Util.IOLike
 import           Ouroboros.Network.AnchoredFragment (AnchoredFragment, toOldestFirst)
@@ -27,7 +40,10 @@ import           Ouroboros.Network.PeerSelection.RelayAccessPoint (PortNumber)
 import           Ouroboros.Network.PeerSelection.State.LocalRootPeers (HotValency (..),
                    WarmValency (..))
 
+import           Control.Error.Util (hoistEither)
 import           Control.Monad (unless, when)
+import           Control.Monad.Trans.Class (lift)
+import           Control.Monad.Trans.Except
 import           Control.Tracer (Tracer (..), nullTracer, traceWith)
 import           Data.Aeson (Value, encode, encodeFile, object, throwDecode, (.=))
 import qualified Data.ByteString.Lazy.Char8 as BSL8
@@ -63,8 +79,19 @@ import           Test.Util.TestBlock (TestBlock, unTestHash)
 import           ExitCodes
 import           Query
 import           Server (run)
-import           ShrinkIndex (ShrinkIndex, ShrinkTree, makeShrinkTree)
 import qualified ShrinkIndex as Ix
+import           ShrinkIndex (ShrinkIndex, ShrinkTree, makeShrinkTree)
+
+instance ( NodeInitStorage (CardanoBlock StandardCrypto)) => HasPointScheduleTestParams (CardanoBlock StandardCrypto) where
+  data ProtocolInfoArgs (CardanoBlock StandardCrypto) = CardanoInfoArgs (CardanoProtocolParams StandardCrypto)
+  mkProtocolInfo _ _ _ (CardanoInfoArgs args) = fst $ protocolInfoCardano @_ @IO args
+  getProtocolInfoArgs = fmap (CardanoInfoArgs . either (error . mappend "getProtocolInfoArgs: ") id) $ runExceptT $ do
+    pnc <- lift $ parseNodeConfigurationFP Nothing
+    nc <- hoistEither $ makeNodeConfiguration pnc
+    let NodeProtocolConfigurationCardano byronConfig shelleyConfig alonzoConfig conwayConfig hardforkConfig checkpointsConfig = ncProtocolConfig nc
+    withExceptT show $ mkCardanoProtocolParams
+      byronConfig shelleyConfig alonzoConfig conwayConfig hardforkConfig checkpointsConfig Nothing
+  getChunkInfoFromTopLevelConfig = nodeImmutableDbChunkInfo . topLevelConfigStorage
 
 -- | Dummy shrinker for all 'GenesisTest'.
 --
@@ -75,7 +102,7 @@ import qualified ShrinkIndex as Ix
 -- ouroboros-consensus/ouroboros-consensus/src/unstable-testlib/Test/Util/QuickCheck.hs
 --
 -- However, this considerations seem to not apply in this setting as
--- such a state view is derived from protocol messages. 
+-- such a state view is derived from protocol messages.
 shrinkGenesisTest :: GenesisTestFull blk -> [GenesisTestFull blk]
 shrinkGenesisTest _ = []
 

@@ -35,6 +35,7 @@ import           Test.Util.TestBlock (TestBlock)
 
 import           MiniProtocols (peerSimServer)
 
+
 -- | Glue code for using just the bits from the Diffusion Layer that we need in
 -- this context.
 serve ::

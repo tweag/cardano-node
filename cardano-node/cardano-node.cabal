@@ -359,6 +359,10 @@ executable conformance-test-runner
                       , cardano-node:{cardano-node, conformance-testlib}
                       , QuickCheck
                       , cardano-api
+                      , ouroboros-consensus-cardano
+                      , transformers
+                      , cardano-protocol-tpraos
+                      , errors
 
 executable conformance-test-viewer
   import:               project-config
