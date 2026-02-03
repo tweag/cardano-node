@@ -12,13 +12,9 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE UndecidableInstances #-}
 
 {-# OPTIONS_GHC -Wno-unused-imports #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 #if !defined(mingw32_HOST_OS)
 #define UNIX
@@ -36,7 +32,7 @@ import qualified Cardano.Api as Api
 import           System.Random (randomIO)
 
 import           Cardano.BM.Data.LogItem (LogObject (..))
-import           Cardano.BM.Data.Tracer (ToLogObject (..), TracingVerbosity (..), ToObject)
+import           Cardano.BM.Data.Tracer (ToLogObject (..), TracingVerbosity (..))
 import           Cardano.BM.Data.Transformers (setHostname)
 import           Cardano.BM.Trace
 import qualified Cardano.Crypto.Init as Crypto
@@ -53,7 +49,7 @@ import qualified Cardano.Node.Configuration.Topology as TopologyNonP2P
 import           Cardano.Node.Configuration.TopologyP2P
 import qualified Cardano.Node.Configuration.TopologyP2P as TopologyP2P
 import           Cardano.Node.Handlers.Shutdown
-import           Cardano.Node.Protocol (ProtocolInstantiationError (..), mkConsensusProtocol, SomeConsensusProtocol (SomeConsensusProtocol))
+import           Cardano.Node.Protocol (ProtocolInstantiationError (..), mkConsensusProtocol)
 import           Cardano.Node.Protocol.Byron (ByronProtocolInstantiationError (CredentialsError))
 import           Cardano.Node.Protocol.Cardano (CardanoProtocolInstantiationError (..))
 import           Cardano.Node.Protocol.Shelley (PraosLeaderCredentialsError (..),
@@ -75,8 +71,8 @@ import           Cardano.Tracing.Tracers
 import qualified Ouroboros.Consensus.Config as Consensus
 import           Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (..))
 import           Ouroboros.Consensus.Node (SnapshotPolicyArgs (..), NetworkP2PMode (..),
-                   NodeDatabasePaths (..), RunNodeArgs (..), StdRunNodeArgs (..), RunNode)
-import           Ouroboros.Consensus.Ledger.SupportsMempool (GenTxId, GenTx, TxId, ApplyTxErr, HasTxs (..), HasTxId (..), LedgerSupportsMempool (..), TxLimits (..), TxMeasureMetrics (..), HasByteSize (..), ByteSize32(..), IgnoringOverflow(..))
+                   NodeDatabasePaths (..), RunNodeArgs (..), StdRunNodeArgs (..))
+import           Ouroboros.Consensus.Ledger.SupportsMempool (GenTxId)
 import           Ouroboros.Consensus.Node (NetworkP2PMode (..), RunNodeArgs (..),
                    SnapshotPolicyArgs (..), StdRunNodeArgs (..))
 import qualified Ouroboros.Consensus.Node as Node (NodeDatabasePaths (..), getChainDB, run)
@@ -176,182 +172,10 @@ import           System.Win32.File
 import           Paths_cardano_node (version)
 
 import           Paths_cardano_node (version)
-import Test.Util.TestBlock
-import Unsafe.Coerce (unsafeCoerce)
-import Ouroboros.Consensus.Util (ShowProxy)
-import Cardano.Tracing.HasIssuer (HasIssuer (..), BlockIssuerVerificationKeyHash(NoBlockIssuer))
-import Ouroboros.Consensus.Block.Forging (ForgeStateUpdateError, ForgeStateInfo, CannotForge)
-import Cardano.Node.Queries (GetKESInfo)
-import GHC.Generics (Generic (..))
-import NoThunks.Class (NoThunks (..))
-import Ouroboros.Consensus.Block.SupportsSanityCheck (BlockSupportsSanityCheck (..))
-import Ouroboros.Consensus.Block.SupportsMetrics (BlockSupportsMetrics (..), WhetherSelfIssued(..))
-import Ouroboros.Consensus.Node.InitStorage (NodeInitStorage (..))
-import Ouroboros.Consensus.Ledger.SupportsPeerSelection (LedgerSupportsPeerSelection (..))
-import Ouroboros.Consensus.Node.Run (SerialiseNodeToClientConstraints, SerialiseNodeToNodeConstraints (..))
-import Ouroboros.Consensus.Ledger.CommonProtocolParams (CommonProtocolParams(..))
-import Ouroboros.Consensus.Node.NetworkProtocolVersion (SupportedNetworkProtocolVersion (..))
-import Ouroboros.Consensus.Ledger.Abstract (Validated)
-import Ouroboros.Consensus.Node.Serialisation (SerialiseNodeToNode, SerialiseBlockQueryResult (..), SerialiseNodeToClient)
-import Test.Util.TestBlock (TestBlock, TestHash, TestBlockError, TestBlockLedgerConfig)
-import Codec.Serialise ( Serialise (encode, decode) )
-import Ouroboros.Network.Block (Serialised)
-import Ouroboros.Consensus.Storage.Serialisation
-  ( SerialisedHeader
-  , decodeTrivialSerialisedHeader
-  , encodeTrivialSerialisedHeader
-  )
-import qualified Data.ByteString.Char8 as BS
-import Cardano.Logging.Types (LogFormatting (..))
-import Ouroboros.Consensus.Block (ChainHash, BlockSupportsMetrics)
-import Ouroboros.Consensus.Protocol.BFT (BftValidationErr)
-import Ouroboros.Consensus.Ledger.Query (SomeBlockQuery(..))
-import Data.Measure.Class (Measure(..))
 
 {- HLINT ignore "Fuse concatMap/map" -}
 {- HLINT ignore "Redundant <$>" -}
 {- HLINT ignore "Use fewer imports" -}
-
-instance Api.Protocol IO TestBlock where
-  data ProtocolInfoArgs TestBlock = TestBlockInfoArgs
-  protocolInfo = const (ProtocolInfo singleNodeTestConfig testInitExtLedger , pure [])
-
-
-instance RunNode TestBlock
-
--- * Orphan instances for RunNode TestBlock
-
--- ** Orphan instances from conformance-test-runner orphans
--- targeting SerialiseNodeToNodeConstraints
-
-instance SerialiseNodeToNodeConstraints TestBlock where
-  estimateBlockSize = const 0
-
-instance SerialiseNodeToNode TestBlock TestBlock
-instance SerialiseNodeToNode TestBlock (Header TestBlock)
-instance SerialiseNodeToNode TestBlock (Serialised TestBlock)
-instance SerialiseNodeToNode TestBlock (SerialisedHeader TestBlock)
-instance SerialiseNodeToNode TestBlock (GenTx TestBlock)
-instance SerialiseNodeToNode TestBlock (GenTxId TestBlock)
-
-data instance GenTx TestBlock
-data instance TxId (GenTx TestBlock)
-deriving instance Generic (GenTx TestBlock)
-
-instance Serialise (GenTx TestBlock)
-instance Serialise (GenTxId TestBlock)
-
-instance Serialise (SerialisedHeader TestBlock) where
-  encode = encodeTrivialSerialisedHeader
-  decode = decodeTrivialSerialisedHeader
-
--- ** More instances for RunNode Instances
-
-type instance ApplyTxErr TestBlock = TestBlock
-type instance ForgeStateInfo TestBlock = TestBlock
-type instance ForgeStateUpdateError TestBlock = TestBlock
-type instance CannotForge TestBlock = TestBlock
-data instance Validated (GenTx TestBlock)
-instance ShowProxy (BlockQuery TestBlock)
-instance ShowProxy (TxId (GenTx TestBlock))
-instance ShowProxy (GenTx TestBlock)
-deriving instance Show (GenTx TestBlock)
-deriving instance Show (Validated (GenTx TestBlock))
-deriving instance Generic (Validated (GenTx TestBlock))
-instance NoThunks (Validated (GenTx TestBlock))
-instance BlockSupportsSanityCheck TestBlock where
-  configAllSecurityParams _ = pure $ Consensus.SecurityParam $ error "configAllSecurityParams"
-instance BlockSupportsMetrics TestBlock where
-  isSelfIssued _ _ = UnknownSelfIssued
-instance NodeInitStorage TestBlock where
-  nodeImmutableDbChunkInfo _ = simpleChunkInfo $ EpochSize 1
-  nodeCheckIntegrity _ _ = True
-instance LedgerSupportsPeerSelection TestBlock where
-  getPeers = error "instance LedgerSupportsPeerSelection TestBlock"
-instance SerialiseNodeToClientConstraints TestBlock
-instance CommonProtocolParams TestBlock where
-  maxHeaderSize _ = 1000
-  maxTxSize _ = 1000
-instance LedgerSupportsMempool TestBlock where
-  applyTx = error "instance LedgerSupportsMempool TestBlock"
-  reapplyTx = error "instance LedgerSupportsMempool TestBlock"
-  txForgetValidated = error "instance LedgerSupportsMempool TestBlock"
-  getTransactionKeySets = error "instance LedgerSupportsMempool TestBlock"
-instance TxLimits TestBlock where
-  type TxMeasure TestBlock = IgnoringOverflow ByteSize32
-  txMeasure _ _ _= pure $ IgnoringOverflow $ ByteSize32 1
-  blockCapacityTxMeasure _ _ = IgnoringOverflow $ ByteSize32 1000
-instance NoThunks (TxId (GenTx TestBlock))
-instance NoThunks (GenTx TestBlock)
-deriving instance Generic (TxId (GenTx TestBlock))
-deriving instance Eq (TxId (GenTx TestBlock))
-deriving instance Ord (TxId (GenTx TestBlock))
-deriving instance Show (TxId (GenTx TestBlock))
-instance HasKESMetricsData TestBlock
-instance HasKESInfo TestBlock
-instance ConvertTxId TestBlock where
-  txIdToRawBytes = BS.pack . show
-instance HasIssuer TestBlock where
-  getIssuerVerificationKeyHash _ = NoBlockIssuer
-instance HasTxs TestBlock where
-  extractTxs = error "instance HasTxs TestBlock"
-instance HasTxId (GenTx TestBlock) where
-  txId = error "instance HasTxId (GenTx TestBlock)"
-instance LedgerQueries TestBlock where
-  ledgerUtxoSize _ = 1
-  ledgerDelegMapSize _ = 0
-  ledgerDRepCount _ = 0
-  ledgerDRepMapSize _ = 0
-instance Api.ToJSON (TxId (GenTx TestBlock))
-instance Api.ToJSON (GenTx TestBlock)
-instance Api.ToJSON (Header TestBlock)
-instance Api.ToJSON TestBlock
-instance Api.ToJSON Validity
-instance Api.ToJSON TestHash
-instance Api.ToJSON (TestBlockError ())
-instance Api.ToJSON (ChainHash TestBlock)
-deriving instance Generic (Header TestBlock)
-instance GetKESInfo TestBlock
-instance ToObject TestBlock
-instance ToObject (GenTx TestBlock)
-instance ToObject (Header TestBlock)
-instance ToObject (TestBlockError ())
-instance ToObject Api.BlockNo
-instance LogFormatting TestBlock where
-  forMachine _ _ = []
-instance LogFormatting (GenTx TestBlock) where
-  forMachine _ _ = []
-instance LogFormatting (Header TestBlock) where
-  forMachine _ _ = []
-instance LogFormatting (TestBlockError ()) where
-  forMachine _ _ = []
-instance LogFormatting Api.BlockNo where
-  forMachine _ _ = []
-instance LogFormatting BftValidationErr where
-  forMachine _ _ = []
-instance SerialiseBlockQueryResult TestBlock BlockQuery where
-  encodeBlockQueryResult _ _ x r =
-    case x of
-      QueryLedgerTip -> encode r
-  decodeBlockQueryResult _ _ x =
-    case x of
-      QueryLedgerTip -> decode
-instance SerialiseNodeToClient TestBlock TestBlockLedgerConfig
-instance SerialiseNodeToClient TestBlock (SomeBlockQuery (BlockQuery TestBlock))
-instance Serialise TestBlockLedgerConfig
-instance Serialise (StrictMaybe Api.SlotNo)
-instance SerialiseNodeToClient TestBlock Api.SlotNo
-instance SerialiseNodeToClient TestBlock (GenTxId TestBlock)
-instance SerialiseNodeToClient TestBlock (GenTx TestBlock)
-instance SerialiseNodeToClient TestBlock (Serialised TestBlock)
-instance SerialiseNodeToClient TestBlock TestBlock
-
-instance Serialise (SomeBlockQuery (BlockQuery TestBlock)) where
-  encode (SomeBlockQuery q) =
-    case q of
-      QueryLedgerTip -> encode @Int 0
-  decode =
-    SomeBlockQuery QueryLedgerTip <$ decode @Int
 
 runNode
   :: PartialNodeConfiguration
@@ -375,7 +199,14 @@ runNode cmdPc = do
           checkVRFFilePermissions stdoutTracer (File vrfFp)
       _ -> pure ()
 
-    let consensusProtocol = SomeConsensusProtocol @TestBlock (unsafeCoerce Api.ByronBlockType ) $ TestBlockInfoArgs
+    consensusProtocol <-
+      runThrowExceptT $
+        mkConsensusProtocol
+         (ncProtocolConfig nc)
+         -- TODO: Convert ncProtocolFiles to Maybe as relay nodes
+         -- don't need these.
+         (Just $ ncProtocolFiles nc)
+
     handleNodeWithTracers cmdPc nc consensusProtocol
 
 runThrowExceptT :: Exception e => ExceptT e IO a -> IO a
