@@ -58,6 +58,7 @@ genNetworkTopology =
                        <*> genUseLedgerPeers
                        <*> genUseBootstrapPeers
                        <*> genPeerSnapshotPath
+                       <*> Gen.maybe genRelayAddress
     ]
 
 -- | Generate valid encodings of p2p topology files

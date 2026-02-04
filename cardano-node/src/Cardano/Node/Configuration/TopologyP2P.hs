@@ -208,16 +208,18 @@ instance ToJSON adr => ToJSON (PublicRootPeers adr) where
 -- type, if we want the user to be able to edit the topology without knowing the
 -- actual addresses of the nodes: those might only be knowable at runtime.
 data NetworkTopology adr = RealNodeTopology
-  { ntLocalRootPeersGroups :: !(LocalRootPeersGroups adr)
-  , ntPublicRootPeers      :: ![PublicRootPeers adr]
-  , ntUseLedgerPeers       :: !UseLedgerPeers
-  , ntUseBootstrapPeers    :: !UseBootstrapPeers
-  , ntPeerSnapshotPath     :: !(Maybe PeerSnapshotFile)
+  { ntLocalRootPeersGroups   :: !(LocalRootPeersGroups adr)
+  , ntPublicRootPeers        :: ![PublicRootPeers adr]
+  , ntUseLedgerPeers         :: !UseLedgerPeers
+  , ntUseBootstrapPeers      :: !UseBootstrapPeers
+  , ntPeerSnapshotPath       :: !(Maybe PeerSnapshotFile)
+  , ntGenesisSyncAccelerator :: !(Maybe adr)
+    -- ^ Optional address of a genesis sync accelerator node.
   }
   deriving (Eq, Show, Generic, Functor, Foldable, Traversable)
 
 instance AdjustFilePaths (NetworkTopology adr) where
-  adjustFilePaths f nt@(RealNodeTopology _ _ _ _ mPeerSnapshotPath) =
+  adjustFilePaths f nt@(RealNodeTopology _ _ _ _ mPeerSnapshotPath _) =
     nt{ntPeerSnapshotPath = PeerSnapshotFile . f . unPeerSnapshotFile <$> mPeerSnapshotPath}
 
 instance FromJSON adr => FromJSON (NetworkTopology adr) where
@@ -227,6 +229,7 @@ instance FromJSON adr => FromJSON (NetworkTopology adr) where
                                  <*> (o .:? "useLedgerAfterSlot" .!= DontUseLedgerPeers  )
                                  <*> (o .:? "bootstrapPeers" .!= DontUseBootstrapPeers   )
                                  <*> (o .:? "peerSnapshotFile")
+                                 <*> (o .:? "genesisSyncAccelerator")
 
 instance ToJSON adr => ToJSON (NetworkTopology adr) where
   toJSON top =
@@ -236,12 +239,13 @@ instance ToJSON adr => ToJSON (NetworkTopology adr) where
                        , ntUseLedgerPeers
                        , ntUseBootstrapPeers
                        , ntPeerSnapshotPath
-                       } -> object [ "localRoots"         .= ntLocalRootPeersGroups
-                                   , "publicRoots"        .= ntPublicRootPeers
-                                   , "useLedgerAfterSlot" .= ntUseLedgerPeers
-                                   , "bootstrapPeers"     .= ntUseBootstrapPeers
-                                   , "peerSnapshotFile"   .= ntPeerSnapshotPath
-                                   ]
+                       , ntGenesisSyncAccelerator
+                       } -> object $ [ "localRoots"             .= ntLocalRootPeersGroups
+                                     , "publicRoots"            .= ntPublicRootPeers
+                                     , "useLedgerAfterSlot"     .= ntUseLedgerPeers
+                                     , "bootstrapPeers"         .= ntUseBootstrapPeers
+                                     , "peerSnapshotFile"       .= ntPeerSnapshotPath
+                                     ] ++ maybe [] (\gsa -> ["genesisSyncAccelerator" .= gsa]) ntGenesisSyncAccelerator
 
 -- | Read the `NetworkTopology` configuration from the specified file.
 readTopologyFile :: ()
@@ -367,7 +371,7 @@ readPeerSnapshotFile (PeerSnapshotFile file) = do
 -- | This function returns false if non-trustable peers are configured
 --
 isValidTrustedPeerConfiguration :: NetworkTopology adr -> Bool
-isValidTrustedPeerConfiguration (RealNodeTopology (LocalRootPeersGroups lprgs) _ _ ubp _) =
+isValidTrustedPeerConfiguration (RealNodeTopology (LocalRootPeersGroups lprgs) _ _ ubp _ _) =
     case ubp of
       DontUseBootstrapPeers   -> True
       UseBootstrapPeers []    -> anyTrustable

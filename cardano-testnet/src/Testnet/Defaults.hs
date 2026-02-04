@@ -479,7 +479,8 @@ defaultMainnetTopology =
     ntPublicRootPeers = [],
     ntUseLedgerPeers = UseLedgerPeers Always,
     ntUseBootstrapPeers = DontUseBootstrapPeers,
-    ntPeerSnapshotPath = Nothing
+    ntPeerSnapshotPath = Nothing,
+    ntGenesisSyncAccelerator = Nothing
   }
 
 defaultGenesisFilepath :: CardanoEra a -> FilePath
@@ -628,4 +629,5 @@ defaultP2PTopology addresses = P2P.RealNodeTopology
   , ntUseLedgerPeers = DontUseLedgerPeers
   , ntUseBootstrapPeers = DontUseBootstrapPeers
   , ntPeerSnapshotPath = Nothing
+  , ntGenesisSyncAccelerator = Nothing
   }

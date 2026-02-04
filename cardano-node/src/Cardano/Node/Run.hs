@@ -60,7 +60,7 @@ import           Cardano.Node.Tracing.StateRep (NodeState (NodeKernelOnline))
 import           Cardano.Node.Tracing.Tracers.NodeVersion (getNodeVersion)
 import           Cardano.Node.Tracing.Tracers.Startup (getStartupInfo)
 import           Cardano.Node.Types
-import           Cardano.Prelude (ExitCode (..), FatalError (..), bool, (:~:) (..))
+import           Cardano.Prelude (ExitCode (..), FatalError (..), bool, (:~:) (..), identity)
 import           Cardano.Slotting.Slot (WithOrigin (..))
 import           Cardano.Tracing.Config (TraceOptions (..), TraceSelection (..))
 import           Cardano.Tracing.Tracers
@@ -134,7 +134,7 @@ import           Control.Monad.Trans.Maybe (MaybeT(runMaybeT, MaybeT), hoistMayb
 import           "contra-tracer" Control.Tracer
 import           Data.Bits
 import           Data.Either (partitionEithers)
-import           Data.IP (toSockAddr)
+import qualified Data.IP as IP
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import           Data.Maybe (catMaybes, fromMaybe, mapMaybe)
@@ -166,6 +166,12 @@ import           System.Win32.File
 import           Paths_cardano_node (version)
 
 import           Paths_cardano_node (version)
+import qualified Network.Socket as Socket
+import qualified Data.IP as IP
+import qualified Network.Socket as Socket
+import qualified Data.IP as IP
+import qualified Data.IP as IP
+import qualified Network.Socket as Socket
 
 {- HLINT ignore "Fuse concatMap/map" -}
 {- HLINT ignore "Redundant <$>" -}
@@ -434,6 +440,7 @@ handleSimpleNode blockType runP tracers nc onKernel = do
       { ntUseLedgerPeers
       , ntUseBootstrapPeers
       , ntPeerSnapshotPath
+      , ntGenesisSyncAccelerator
       } <- TopologyP2P.readTopologyFileOrError nc (startupTracer tracers)
     let (localRoots, publicRoots) = producerAddresses nt
     traceWith (startupTracer tracers)
@@ -460,7 +467,11 @@ handleSimpleNode blockType runP tracers nc onKernel = do
                                             (readTVar useLedgerVar)
                                             (const . pure $ ())
 
-    let nodeArgs = RunNodeArgs
+    let getGSASockAddr :: RelayAccessPoint -> Either String RemoteAddress
+        getGSASockAddr = \case
+          RelayAccessAddress (IP.IPv4 ip) port -> Right $ Socket.SockAddrInet port (IP.toHostAddress ip)
+          accessPoint -> Left $ "Illegal value for genesis sync accelerator: " <> show accessPoint
+        nodeArgs = RunNodeArgs
           { rnGenesisConfig  = ncGenesisConfig nc
           , rnTraceConsensus = consensusTracers tracers
           , rnTraceNTN       = nodeToNodeTracers tracers
@@ -481,6 +492,7 @@ handleSimpleNode blockType runP tracers nc onKernel = do
               onKernel nodeKernel
           , rnPeerSharing    = ncPeerSharing nc
           , rnGetUseBootstrapPeers = readTVar useBootstrapVar
+          , rnGenesisSyncAccelerator = either error id . getGSASockAddr <$> ntGenesisSyncAccelerator
           }
 #ifdef UNIX
     -- initial `SIGHUP` handler, which only rereads the topology file but
