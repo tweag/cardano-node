@@ -12,9 +12,7 @@ module IssueTestBlock () where
 import           Cardano.Crypto.Hash as Hash
 import           Cardano.Crypto.KES as KES
 import           Cardano.Crypto.VRF.Class (deriveVerKeyVRF)
-import           Cardano.Ledger.Alonzo.Tx
-import           Cardano.Ledger.Alonzo.TxAuxData (mkAlonzoTxAuxData)
-import           Cardano.Ledger.Alonzo.TxWits (AlonzoTxWits (..))
+import           Cardano.Ledger.Alonzo.TxSeq (AlonzoTxSeq)
 import           Cardano.Ledger.BaseTypes
 import           Cardano.Ledger.Keys hiding (hashVerKeyVRF)
 import           Cardano.Ledger.Shelley.API hiding (hashVerKeyVRF)
@@ -26,100 +24,101 @@ import           Cardano.Protocol.TPraos.BHeader
 import           Ouroboros.Consensus.Cardano.Block (CardanoBlock, pattern BlockConway)
 import           Ouroboros.Consensus.Protocol.Praos.Common (PraosCanBeLeader (..))
 import           Ouroboros.Consensus.Protocol.Praos.Header
+import           Ouroboros.Consensus.Protocol.Praos.VRF (mkInputVRF)
 import           Ouroboros.Consensus.Shelley.Eras
 import           Ouroboros.Consensus.Shelley.Ledger (ShelleyBlock (..), ShelleyHash (..))
 import           Ouroboros.Consensus.Shelley.Node.Common (ShelleyLeaderCredentials (..))
 import           Ouroboros.Consensus.Shelley.Protocol.Praos ()
 
 import           Control.Monad.Trans.Except
-import qualified Data.Map as M
-import qualified Data.Sequence.Strict as StrictSeq
+import           System.FilePath ((</>))
 
-import           Test.Cardano.Ledger.Binary.Random (mkDummyHash)
-import           Test.Cardano.Ledger.Conway.Examples.Consensus
-import           Test.Cardano.Ledger.Core.KeyPair (mkWitnessesVKey)
-import qualified Test.Cardano.Ledger.Shelley.Examples.Consensus as SLE
-import           Test.Cardano.Ledger.Shelley.Utils hiding (mkVRFKeyPair)
+import           Test.Cardano.Ledger.Shelley.Utils (mkCertifiedVRF)
 
 import           Test.Consensus.Genesis.Setup.GenChains (IssueTestBlock (..))
 
 
+-- | Data required for issuing cardano blocks.
+data CardanoBlockCtx = CardanoBlockCtx
+  { cbcCredentials :: ShelleyLeaderCredentials StandardCrypto
+    -- ^ Necessary keys and certificates.
+  , cbcEpochNonce  :: Nonce
+    -- ^ The nonce, required to pass some VRF checks.
+  }
+
 instance IssueTestBlock (CardanoBlock StandardCrypto) where
-  type TestBlockContext (CardanoBlock StandardCrypto) = ShelleyLeaderCredentials StandardCrypto
+  type TestBlockContext (CardanoBlock StandardCrypto) = CardanoBlockCtx
   getTestBlockContext _ = do
-    let hardcodedPaths = ProtocolFilepaths
+    -- TODO(isovector): Use real command line configuration for these paths.
+    let prefix = "./configuration/tester"
+        hardcodedPaths = ProtocolFilepaths
           { byronCertFile        = Nothing
           , byronKeyFile         = Nothing
-          , shelleyKESFile       = Just "./configuration/tester/delegate-keys/delegate1/kes.skey"
-          , shelleyVRFFile       = Just "./configuration/tester/delegate-keys/delegate1/vrf.skey"
-          , shelleyCertFile      = Just "./configuration/tester/delegate-keys/delegate1/opcert.cert"
+          , shelleyKESFile       = Just $ prefix </> "delegate-keys/delegate1/kes.skey"
+          , shelleyVRFFile       = Just $ prefix </> "delegate-keys/delegate1/vrf.skey"
+          , shelleyCertFile      = Just $ prefix </> "delegate-keys/delegate1/opcert.cert"
           , shelleyBulkCredsFile = Nothing
           }
-    Right (x:_) <- runExceptT $ readLeaderCredentials $ Just hardcodedPaths
-    pure x
-  issueFirstBlock credentials fork slot = makeCardanoBlock credentials (Just fork) 0 slot Nothing
-  issueSuccessorBlock credentials fork slot (BlockConway (ShelleyBlock
-      (Block (Header (HeaderBody {hbBlockNo, hbSlotNo}) _) _)
-      (ShelleyHash hh))) =
-    makeCardanoBlock credentials fork
-      (hbBlockNo + 1)
-      (hbSlotNo + slot) $ Just $ HashHeader hh
+    Right (creds:_) <- runExceptT $ readLeaderCredentials $ Just hardcodedPaths
+    -- Compute the initial epoch nonce the same way cardano-node does:
+    -- it's the hash of the shelley genesis file.
+    Right (_, genesisHash) <- runExceptT $
+      readGenesis (GenesisFile $ prefix </> "shelley-genesis.json") Nothing
+    pure $ CardanoBlockCtx
+      { cbcCredentials = creds
+      , cbcEpochNonce = genesisHashToPraosNonce genesisHash
+      }
+  issueFirstBlock ctx fork slot =
+    makeCardanoBlock ctx (Just fork) 0 slot Nothing
+  issueSuccessorBlock ctx fork slot (BlockConway (ShelleyBlock
+      (Block hdr _)
+      _)) =
+    makeCardanoBlock ctx fork
+      (hbBlockNo (headerBody hdr) + 1)
+      (hbSlotNo  (headerBody hdr) + slot + 1)
+      (Just $ HashHeader $ headerHash hdr)
   issueSuccessorBlock _ _ _ _ =
-    -- Impossible because we only ever produce 'BlockConway' in
-    -- 'makeCardanoBlock'.
-    error "issueSuccessorBlock: impossible"
+    error "issueSuccessorBlock: impossible, since all blocks are guaranteed to be BlockConway"
 
 
 -- | Construct a fake 'CardanoBlock' with all of its crypto intact.
 makeCardanoBlock
-  :: ShelleyLeaderCredentials StandardCrypto
+  :: CardanoBlockCtx
   -> Maybe Int
+  -- ^ Fork number
   -> BlockNo
   -> SlotNo
   -> Maybe HashHeader
   -> CardanoBlock StandardCrypto
-makeCardanoBlock credentails fork blockNo slot mhash = BlockConway $
-  let blk =
-        conwayLedgerBlock credentails slot blockNo mhash $
-          AlonzoTx
-            exampleTxBodyConway
-            ( AlonzoTxWits
-                (mkWitnessesVKey (hashAnnotated exampleTxBodyConway) [asWitness SLE.examplePayKey]) -- vkey
-                mempty -- bootstrap
-                mempty -- txscripts
-                mempty -- txdats
-                mempty -- redeemers
-            )
-            (IsValid True)
-            ( SJust $ forkToAuxData fork
-            )
-      Block (Header bhb _) _ = blk
+makeCardanoBlock ctx fork blockNo slot mhash = BlockConway $
+  let blk@(Block (Header bhb _) _) = conwayLedgerBlock ctx fork slot blockNo mhash
     in ShelleyBlock blk $ ShelleyHash $ castHash $ hbBodyHash bhb
 
 
 -- | Construct a made-up (but believable) cardano block for the Conway era.
 conwayLedgerBlock
-  :: ShelleyLeaderCredentials StandardCrypto ->
-  SlotNo ->
-  BlockNo ->
-  Maybe HashHeader ->
+  :: CardanoBlockCtx
+  -> Maybe Int
+  -- ^ Fork number, encoded in the minor protocol version to distinguish block hashes.
+  -> SlotNo
+  -> BlockNo
+  -> Maybe HashHeader
   -- ^ The parent hash, if there is one.
-  Tx ConwayEra ->
-  -- ^ Some transaction to stick in the block.
-  Block (Header StandardCrypto) ConwayEra
-conwayLedgerBlock credentials slot blockNo prev tx = Block blockHeader blockBody
+  -> Block (Header StandardCrypto) ConwayEra
+conwayLedgerBlock CardanoBlockCtx{cbcCredentials, cbcEpochNonce} fork slot blockNo prev =
+    Block blockHeader blockBody
   where
     PraosCanBeLeader
         { praosCanBeLeaderSignKeyVRF
         , praosCanBeLeaderColdVerKey
         , praosCanBeLeaderOpCert
-        } = shelleyLeaderCredentialsCanBeLeader credentials
+        } = shelleyLeaderCredentialsCanBeLeader cbcCredentials
 
     blockHeader :: Header StandardCrypto
     blockHeader =
         Header blockHeaderBody $
           unsoundPureSignedKES () 0 blockHeaderBody $
-            shelleyLeaderCredentialsInitSignKey credentials
+            shelleyLeaderCredentialsInitSignKey cbcCredentials
 
     blockHeaderBody :: HeaderBody StandardCrypto
     blockHeaderBody =
@@ -129,21 +128,31 @@ conwayLedgerBlock credentials slot blockNo prev tx = Block blockHeader blockBody
         , hbPrev = maybe GenesisHash BlockHash prev
         , hbVk = coerceKeyRole praosCanBeLeaderColdVerKey
         , hbVrfVk = deriveVerKeyVRF praosCanBeLeaderSignKeyVRF
-        , hbVrfRes = mkCertifiedVRF (mkBytes 0) praosCanBeLeaderSignKeyVRF
-        , hbBodySize = 2345
+        , hbVrfRes = mkCertifiedVRF (mkInputVRF slot cbcEpochNonce) praosCanBeLeaderSignKeyVRF
+        , hbBodySize = fromIntegral $ bBodySize protVer blockBody
         , hbBodyHash = hashTxSeq blockBody
         , hbOCert = praosCanBeLeaderOpCert
-        , hbProtVer = ProtVer (natVersion @2) 0
+        , hbProtVer = protVer
         }
 
-    blockBody = toTxSeq @ConwayEra (StrictSeq.fromList [tx])
+    blockBody :: AlonzoTxSeq ConwayEra
+    blockBody = toTxSeq mempty
 
-    mkBytes :: Int -> Cardano.Ledger.BaseTypes.Seed
-    mkBytes = Seed . mkDummyHash @Blake2b_256
+    -- The 'IssueTestBlock' interface requires that the first block of each
+    -- adversarial fork has a distinct hash from the corresponding trunk block
+    -- at the same slot. Only the first block of each fork carries
+    -- a non-Nothing fork number; all subsequent blocks in that fork pass
+    -- Nothing (see 'mkTestBlocks' in GenChains.hs).
+    --
+    -- 'CardanoBlock' has no dedicated "fork" field, so we encode the fork
+    -- number in 'hbProtVer' minor version. This is included verbatim in the
+    -- CBOR serialisation of 'HeaderBody' (see 'encCBOR' instance in
+    -- Praos.Header), and 'headerHash' hashes that serialisation, so different
+    -- minor versions produce different block hashes. Only the major version is
+    -- checked by the ledger (for hard-fork transitions), so this does not
+    -- cause any validation failures.
+    protVer :: ProtVer
+    protVer = ProtVer (eraProtVerLow @ConwayEra) (maybe 0 fromIntegral fork)
 
 
--- | We need to do something with our fork number to futz the resulting hash.
--- So we stick it into the auxilliary data that gets attached to the block.
-forkToAuxData :: Maybe Int -> TxAuxData ConwayEra
-forkToAuxData fk = mkAlonzoTxAuxData @_ @ConwayEra (foldMap (M.singleton 1 . I . fromIntegral) fk) []
 

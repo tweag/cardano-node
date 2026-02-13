@@ -12,6 +12,7 @@
 
 NUT_NTN_PORT=3001
 
+export CARDANO_NODE_CONFIG=./configuration/tester/mainnet-config.json
 export LC_ALL=C.UTF-8
 cabal run cardano-node:conformance-test-runner -- \
     --topology-file=/tmp/topology.file \
@@ -34,6 +35,7 @@ done
 cabal run cardano-node:cardano-node -- run \
     --topology=/tmp/topology.file \
     --port="$NUT_NTN_PORT" & # 1>/dev/null &
+    --config=configuration/tester/mainnet-config.json & # 1>/dev/null &
 NUT_PID=$!
 
 # Wait for test-runner to exit, and capture its exit code.

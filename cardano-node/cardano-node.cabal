@@ -345,6 +345,9 @@ library conformance-testlib
                       , cardano-ledger-alonzo
                       , cardano-crypto-class
                       , transformers
+                      , cardano-ledger-conway
+                      , lens
+                      , filepath
 
 
 executable conformance-test-runner
