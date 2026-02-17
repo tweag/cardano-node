@@ -317,7 +317,6 @@ library conformance-testlib
                       , ouroboros-consensus:{ouroboros-consensus, unstable-consensus-testlib}
                       , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
                       , ouroboros-network-api
-                      , aeson
                       , bytestring
                       , ouroboros-network-framework
                       , network
@@ -393,9 +392,11 @@ executable conformance-test-viewer
                       , errors
                       , mtl
                       , optparse-applicative
-                      , ouroboros-consensus-cardano
+                      , ouroboros-consensus:unstable-consensus-testlib
                       , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
+                      , ouroboros-network-api
                       , QuickCheck
+                      , text
 
 executable conformance-test-gen
   import:               project-config
