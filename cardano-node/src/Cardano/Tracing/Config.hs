@@ -146,6 +146,7 @@ type TraceErrorPolicy = ("TraceErrorPolicy" :: Symbol)
 type TraceForge = ("TraceForge" :: Symbol)
 type TraceForgeStateInfo = ("TraceForgeStateInfo" :: Symbol)
 type TraceGDD = ("TraceGDD" :: Symbol)
+type TraceLeashing = ("TraceLeashing" :: Symbol)
 type TraceHandshake = ("TraceHandshake" :: Symbol)
 type TraceIpSubscription = ("TraceIpSubscription" :: Symbol)
 type TraceKeepAliveClient = ("TraceKeepAliveClient" :: Symbol)
@@ -222,6 +223,7 @@ data TraceSelection
   , traceForge :: OnOff TraceForge
   , traceForgeStateInfo :: OnOff TraceForgeStateInfo
   , traceGDD :: OnOff TraceGDD
+  , traceLeashing :: OnOff TraceLeashing
   , traceHandshake :: OnOff TraceHandshake
   , traceInboundGovernor :: OnOff TraceInboundGovernor
   , traceInboundGovernorCounters :: OnOff TraceInboundGovernorCounters
@@ -292,6 +294,7 @@ data PartialTraceSelection
       , pTraceForge :: Last (OnOff TraceForge)
       , pTraceForgeStateInfo :: Last (OnOff TraceForgeStateInfo)
       , pTraceGDD :: Last (OnOff TraceGDD)
+      , pTraceLeashing :: Last (OnOff TraceLeashing)
       , pTraceHandshake :: Last (OnOff TraceHandshake)
       , pTraceInboundGovernor :: Last (OnOff TraceInboundGovernor)
       , pTraceInboundGovernorCounters :: Last (OnOff TraceInboundGovernorCounters)
@@ -363,6 +366,7 @@ instance FromJSON PartialTraceSelection where
       <*> parseTracer (Proxy @TraceForge) v
       <*> parseTracer (Proxy @TraceForgeStateInfo) v
       <*> parseTracer (Proxy @TraceGDD) v
+      <*> parseTracer (Proxy @TraceLeashing) v
       <*> parseTracer (Proxy @TraceHandshake) v
       <*> parseTracer (Proxy @TraceInboundGovernor) v
       <*> parseTracer (Proxy @TraceInboundGovernorCounters) v
@@ -431,6 +435,7 @@ defaultPartialTraceConfiguration =
     , pTraceForge = pure $ OnOff True
     , pTraceForgeStateInfo = pure $ OnOff True
     , pTraceGDD = pure $ OnOff False
+    , pTraceLeashing = pure $ OnOff False
     , pTraceHandshake = pure $ OnOff False
     , pTraceInboundGovernor = pure $ OnOff True
     , pTraceInboundGovernorCounters = pure $ OnOff True
@@ -501,6 +506,7 @@ partialTraceSelectionToEither (Last (Just (PartialTraceDispatcher pTraceSelectio
    traceForge <- proxyLastToEither (Proxy @TraceForge) pTraceForge
    traceForgeStateInfo <- proxyLastToEither (Proxy @TraceForgeStateInfo) pTraceForgeStateInfo
    traceGDD <- proxyLastToEither (Proxy @TraceGDD) pTraceGDD
+   traceLeashing <- proxyLastToEither (Proxy @TraceLeashing) pTraceLeashing
    traceHandshake <- proxyLastToEither (Proxy @TraceHandshake) pTraceHandshake
    traceInboundGovernor <- proxyLastToEither (Proxy @TraceInboundGovernor) pTraceInboundGovernor
    traceInboundGovernorCounters <- proxyLastToEither (Proxy @TraceInboundGovernorCounters) pTraceInboundGovernorCounters
@@ -564,6 +570,7 @@ partialTraceSelectionToEither (Last (Just (PartialTraceDispatcher pTraceSelectio
              , traceForge = traceForge
              , traceForgeStateInfo = traceForgeStateInfo
              , traceGDD = traceGDD
+             , traceLeashing = traceLeashing
              , traceHandshake = traceHandshake
              , traceInboundGovernor = traceInboundGovernor
              , traceInboundGovernorCounters = traceInboundGovernorCounters
@@ -631,6 +638,7 @@ partialTraceSelectionToEither (Last (Just (PartialTracingOnLegacy pTraceSelectio
   traceForge <- proxyLastToEither (Proxy @TraceForge) pTraceForge
   traceForgeStateInfo <- proxyLastToEither (Proxy @TraceForgeStateInfo) pTraceForgeStateInfo
   traceGDD <- proxyLastToEither (Proxy @TraceGDD) pTraceGDD
+  traceLeashing <- proxyLastToEither (Proxy @TraceLeashing) pTraceLeashing
   traceHandshake <- proxyLastToEither (Proxy @TraceHandshake) pTraceHandshake
   traceInboundGovernor <- proxyLastToEither (Proxy @TraceInboundGovernor) pTraceInboundGovernor
   traceIpSubscription <- proxyLastToEither (Proxy @TraceIpSubscription) pTraceIpSubscription
@@ -694,6 +702,7 @@ partialTraceSelectionToEither (Last (Just (PartialTracingOnLegacy pTraceSelectio
             , traceForge = traceForge
             , traceForgeStateInfo = traceForgeStateInfo
             , traceGDD = traceGDD
+            , traceLeashing = traceLeashing
             , traceHandshake = traceHandshake
             , traceInboundGovernor = traceInboundGovernor
             , traceInboundGovernorCounters = traceInboundGovernorCounters

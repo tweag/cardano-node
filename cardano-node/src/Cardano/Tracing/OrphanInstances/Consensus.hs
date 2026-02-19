@@ -56,6 +56,7 @@ import           Ouroboros.Consensus.MiniProtocol.LocalTxSubmission.Server
                    (TraceLocalTxSubmissionServerEvent (..))
 import           Ouroboros.Consensus.Node.GSM
 import           Ouroboros.Consensus.Node.Run (RunNode, estimateBlockSize)
+import           Ouroboros.Consensus.Node.Leashing (TraceLeashingEvent (..))
 import           Ouroboros.Consensus.Node.Tracers (TraceForgeEvent (..))
 import qualified Ouroboros.Consensus.Node.Tracers as Consensus
 import           Ouroboros.Consensus.Protocol.Abstract
@@ -1856,3 +1857,15 @@ instance ConvertRawHash blk => ToObject (Tip blk) where
             , "tipHash" .= renderHeaderHash (Proxy @blk) hash
             , "tipBlockNo" .= toJSON bNo
             ]
+
+instance HasPrivacyAnnotation (TraceLeashingEvent blk) where
+instance HasSeverityAnnotation (TraceLeashingEvent blk) where
+  getSeverityAnnotation _ = Debug
+instance (Typeable blk, ConvertRawHash blk, GetHeader blk) => Transformable Text IO (TraceLeashingEvent blk) where
+  trTransformer = trStructured
+
+instance (Typeable blk, ConvertRawHash blk, GetHeader blk) => ToObject (TraceLeashingEvent blk) where
+  toObject _verb (TraceLeashingDebug msg) = mconcat $
+    [ "kind" .= String "TraceLeashingEvent"
+    , "msg".= toJSON msg
+    ] 

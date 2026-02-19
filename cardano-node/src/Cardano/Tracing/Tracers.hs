@@ -546,6 +546,7 @@ mkTracers _ _ _ _ _ enableP2P =
       , Consensus.keepAliveClientTracer = nullTracer
       , Consensus.forgeStateInfoTracer = nullTracer
       , Consensus.gddTracer = nullTracer
+      , Consensus.leashingTracer = nullTracer
       , Consensus.txInboundTracer = nullTracer
       , Consensus.txOutboundTracer = nullTracer
       , Consensus.localTxSubmissionServerTracer = nullTracer
@@ -824,6 +825,7 @@ mkConsensusTracers mbEKGDirect trSel verb tr nodeKern fStats = do
     , Consensus.blockFetchServerTracer = traceBlockFetchServerMetrics trmet meta tBlocksServed
         tLocalUp tMaxSlotNo $ tracerOnOff (traceBlockFetchServer trSel) verb "BlockFetchServer" tr
     , Consensus.gddTracer = tracerOnOff (traceGDD trSel) verb "GDD" tr
+    , Consensus.leashingTracer = tracerOnOff (traceLeashing trSel) verb "Leashing" tr
     , Consensus.keepAliveClientTracer = tracerOnOff (traceKeepAliveClient trSel) verb "KeepAliveClient" tr
     , Consensus.forgeStateInfoTracer = tracerOnOff' (traceForgeStateInfo trSel) $
         forgeStateInfoTracer (Proxy @blk) trSel tr
