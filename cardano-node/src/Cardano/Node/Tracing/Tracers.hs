@@ -313,6 +313,11 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
                  ["Consensus", "GDD"]
     configureTracers configReflection trConfig [consensusGddTr]
 
+    !consensusLsqLeashingTr <- mkCardanoTracer
+                 trBase trForward mbTrEKG
+                 ["Consensus", "LsqLeashing"]
+    configureTracers configReflection trConfig [consensusLsqLeashingTr]
+
     !consensusGsmTr <- mkCardanoTracer
                 trBase trForward mbTrEKG
                 ["Consensus", "GSM"]
@@ -355,6 +360,8 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
           traceWith (traceAsKESInfo (Proxy @blk) forgeKESInfoTr)
       , Consensus.gddTracer = Tracer $
           traceWith consensusGddTr
+      , Consensus.lsqLeashingTracer = Tracer $
+          traceWith consensusLsqLeashingTr
       , Consensus.txInboundTracer = Tracer $
            traceWith txInboundTr
       , Consensus.txOutboundTracer = Tracer $

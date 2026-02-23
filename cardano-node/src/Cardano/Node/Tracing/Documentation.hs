@@ -56,6 +56,7 @@ import           Ouroboros.Consensus.BlockchainTime.WallClock.Types (RelativeTim
 import           Ouroboros.Consensus.BlockchainTime.WallClock.Util (TraceBlockchainTimeEvent (..))
 import           Ouroboros.Consensus.Cardano.Block
 import           Ouroboros.Consensus.Genesis.Governor (TraceGDDEvent (..))
+import           Ouroboros.Consensus.Node.LsqLeashing (TraceLsqLeashingEvent (..))
 import           Ouroboros.Consensus.Ledger.Query (Query)
 import           Ouroboros.Consensus.Ledger.SupportsMempool (ApplyTxErr, GenTxId)
 import           Ouroboros.Consensus.Mempool (TraceEventMempool (..))
@@ -411,6 +412,13 @@ docTracersFirstPhase condConfigFileName = do
     consensusGddTrDoc <- documentTracer (consensusGddTr ::
       Logging.Trace IO (TraceGDDEvent peer blk))
 
+    consensusLeashingTr <- mkCardanoTracer
+                 trBase trForward mbTrEKG
+                 ["Consensus", "LsqLeashing"]
+    configureTracers configReflection trConfig [consensusLeashingTr]
+    consensusLeashingTrDoc <- documentTracer (consensusLeashingTr ::
+      Logging.Trace IO (TraceLsqLeashingEvent blk))
+
     consensusGsmTr <- mkCardanoTracer
                 trBase trForward mbTrEKG
                 ["Consensus", "GSM"]
@@ -729,6 +737,7 @@ docTracersFirstPhase condConfigFileName = do
             <> consensusSanityCheckTrDoc
             <> consensusStartupErrorTrDoc
             <> consensusGddTrDoc
+            <> consensusLeashingTrDoc
             <> consensusGsmTrDoc
             <> consensusCsjTrDoc
             <> consensusDbfTrDoc

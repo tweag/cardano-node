@@ -83,6 +83,11 @@ library
                       , hostname
                       , http-date
                       , network
+                      , network-mux
+                      , optparse-applicative-fork
+                      , ouroboros-network ^>= 0.22.6
+                      , ouroboros-network-api
+                      , ouroboros-network-framework
                       , serialise
                       , stm
                       , text

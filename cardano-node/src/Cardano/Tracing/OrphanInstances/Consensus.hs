@@ -57,6 +57,7 @@ import           Ouroboros.Consensus.MiniProtocol.LocalTxSubmission.Server
                    (TraceLocalTxSubmissionServerEvent (..))
 import           Ouroboros.Consensus.Node.GSM
 import           Ouroboros.Consensus.Node.Run (RunNode, estimateBlockSize)
+import           Ouroboros.Consensus.Node.LsqLeashing (TraceLsqLeashingEvent (..))
 import           Ouroboros.Consensus.Node.Tracers (TraceForgeEvent (..))
 import qualified Ouroboros.Consensus.Node.Tracers as Consensus
 import           Ouroboros.Consensus.Protocol.Abstract
@@ -1937,3 +1938,15 @@ instance HasSeverityAnnotation Agent.ServiceClientTrace where
     Agent.ServiceClientOpCertNumberCheck{} -> Debug
     Agent.ServiceClientAbnormalTermination{} -> Error
     Agent.ServiceClientStopped{} -> Info
+
+instance HasPrivacyAnnotation (TraceLsqLeashingEvent blk) where
+instance HasSeverityAnnotation (TraceLsqLeashingEvent blk) where
+  getSeverityAnnotation _ = Debug
+instance (Typeable blk, ConvertRawHash blk, GetHeader blk) => Transformable Text IO (TraceLsqLeashingEvent blk) where
+  trTransformer = trStructured
+
+instance (Typeable blk, ConvertRawHash blk, GetHeader blk) => ToObject (TraceLsqLeashingEvent blk) where
+  toObject _verb (TraceLsqLeashingDebug msg) = mconcat $
+    [ "kind" .= String "TraceLsqLeashingEvent"
+    , "msg".= toJSON msg
+    ] 

@@ -58,6 +58,7 @@ import           Ouroboros.Consensus.MiniProtocol.LocalTxSubmission.Server
                    (TraceLocalTxSubmissionServerEvent (..))
 import           Ouroboros.Consensus.Node.GSM
 import           Ouroboros.Consensus.Node.Run (SerialiseNodeToNodeConstraints, estimateBlockSize)
+import           Ouroboros.Consensus.Node.LsqLeashing (TraceLsqLeashingEvent(..))
 import           Ouroboros.Consensus.Node.Tracers
 import qualified Ouroboros.Consensus.Protocol.Ledger.HotKey as HotKey
 import           Ouroboros.Consensus.Protocol.Praos.AgentClient
@@ -1037,6 +1038,29 @@ instance ( HasHeader blk
     , "latestSlot" .= toJSON (unSlotNo <$> withOriginToMaybe latestSlot)
     , "idling" .= toJSON idling
     ]
+
+
+--------------------------------------------------------------------------------
+-- Leashing Tracer
+--------------------------------------------------------------------------------
+
+instance ( HasHeader blk
+         , HasHeader (Header blk)
+         , ConvertRawHash (Header blk)
+         ) => LogFormatting (TraceLsqLeashingEvent blk) where
+  forMachine _dtal (TraceLsqLeashingDebug msg) = mconcat $
+    [ "kind" .= String "TraceLeashingDebugInfo"
+    , "msg" .= toJSON msg
+    ]
+
+instance MetaTrace (TraceLsqLeashingEvent blk) where
+  namespaceFor _ = Namespace [] ["TraceLsqLeashingEvent"]
+
+  severityFor _ _ = Just Debug
+
+  documentFor _ = Just "The Leashing has updated its state"
+
+  allNamespaces = [Namespace [] ["TraceLsqLeashingEvent"]]
 
 
 --------------------------------------------------------------------------------

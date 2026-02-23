@@ -171,6 +171,7 @@ let
       tx-generator = rec {
         # Local reference only used if not "cloud".
         nix-store-path = haskellProject.exes.tx-generator;
+        nix-store-path = pkgs.cardanoNodePackages.tx-generator.passthru.noGitRev;
         flake-reference = "github:intersectmbo/cardano-node";
         # Where to fetch the binary from during "cloud" runs.
         # Avoid nix cache misses on every commit because of `set-git-rev`.

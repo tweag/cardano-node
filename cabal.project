@@ -29,11 +29,13 @@ packages:
   bench/cardano-profile
   bench/cardano-topology
   bench/locli
-  bench/plutus-scripts-bench
+--  bench/plutus-scripts-bench
   bench/tx-generator
   trace-dispatcher
   trace-resources
   trace-forward
+--  ../ouroboros-consensus/ouroboros-consensus
+--  ../ouroboros-consensus/ouroboros-consensus-diffusion
 
 -- Needed when cross compiling
 extra-packages: alex
@@ -75,3 +77,33 @@ if impl (ghc >= 9.12)
 -- IMPORTANT
 -- Do NOT add more source-repository-package stanzas here unless they are strictly
 -- temporary! Please read the section in CONTRIBUTING about updating dependencies.
+
+source-repository-package
+    type: git
+    location: https://github.com/tweag/ouroboros-network
+    tag: 461bbd3f6a27bc282d8a2b7c54e9ef929f30efb0
+    --sha256: sha256-lEw68KGx16CkBktEeS4xyth6zh9doLewQqxHAiUrxcQ=
+    subdir:
+      ouroboros-network
+      ouroboros-network-protocols
+      ouroboros-network-framework
+      ouroboros-network-mock
+
+source-repository-package
+    type: git
+    location: https://github.com/tweag/ouroboros-consensus
+    tag: f113d1eb8c6d69df47a24afe7a104cf796d1c5d8
+    --sha256: sha256-P5yRuok5kj5VTglZZkHRIHy53YbpSWtJHPvONDsXLi4= 
+    subdir:
+      ouroboros-consensus
+      ouroboros-consensus-cardano
+      ouroboros-consensus-diffusion
+      ouroboros-consensus-protocol
+
+source-repository-package
+    type: git
+    location: https://github.com/tweag/cardano-api
+    tag: 9fc52b8fbfa77492e2dc48773d5b4d298da76067
+    --sha256: sha256-Ule9hUbpjMaq0lrTKLSqV49T1snbpaDyogw+TtX7mqI=
+    subdir:
+      cardano-api

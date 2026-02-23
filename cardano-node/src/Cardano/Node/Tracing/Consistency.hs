@@ -53,6 +53,7 @@ import           Ouroboros.Consensus.MiniProtocol.ChainSync.Server (TraceChainSy
 import           Ouroboros.Consensus.MiniProtocol.LocalTxSubmission.Server
                    (TraceLocalTxSubmissionServerEvent (..))
 import           Ouroboros.Consensus.Node.GSM
+import           Ouroboros.Consensus.Node.LsqLeashing (TraceLsqLeashingEvent)
 import           Ouroboros.Consensus.Node.Tracers (TraceForgeEvent)
 import qualified Ouroboros.Consensus.Protocol.Ledger.HotKey as HotKey
 import qualified Ouroboros.Consensus.Storage.ChainDB as ChainDB
@@ -195,6 +196,8 @@ getAllNamespaces =
                         (allNamespaces :: [Namespace (TraceBlockchainTimeEvent RelativeTime)])
         gddNS = map (nsGetTuple . nsReplacePrefix  ["Consensus", "GDD"])
                         (allNamespaces :: [Namespace (TraceGDDEvent peer blk)])
+        lsqLeashingNS = map (nsGetTuple . nsReplacePrefix  ["Consensus", "LsqLeashing"])
+                        (allNamespaces :: [Namespace (TraceLsqLeashingEvent blk)])
         consensusStartupErrorNS = map (nsGetTuple . nsReplacePrefix  ["Consensus", "Startup"])
                         (allNamespaces :: [Namespace ConsensusStartupException])
         gsmNS = map (nsGetTuple . nsReplacePrefix  ["Consensus", "GSM"])
@@ -405,6 +408,7 @@ getAllNamespaces =
             <> forgeNS
             <> blockchainTimeNS
             <> gddNS
+            <> lsqLeashingNS
             <> consensusStartupErrorNS
             <> gsmNS
             <> csjNS
