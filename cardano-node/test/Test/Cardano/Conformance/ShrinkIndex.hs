@@ -10,6 +10,7 @@ module Test.Cardano.Conformance.ShrinkIndex (tests) where
 
 import           Control.Comonad (Comonad (extract))
 import           Data.Kind (Type)
+import           Data.Maybe (catMaybes)
 import           Data.Proxy (Proxy (..))
 import           Data.Typeable (Typeable, eqT, typeRep)
 
@@ -51,7 +52,7 @@ tests =
     , testProperty "Empty index has no successor on a tree" prop_emptySucc
     , testProperty "The next function picks an index next sibling" prop_next
     , testProperty "Shrink tree traversal by and index path is a monoid homomorphism" prop_monoidHomomorphism
-    , testProperty "Child lookup returns the corresponding shrinking cadidate" prop_childLookup
+    , testProperty "Child lookup returns the corresponding shrinking cadidate" prop_childLookup_SomeType
     ]
 
 -- | A data representation of 'SomeType' to generate 'Arbitrary' types for this
@@ -117,15 +118,39 @@ prop_monoidHomomorphism (SomeType (_ :: Proxy a)) =
      in conjoin $ fmap snd testList
 
 
--- | This property verifies that the 'makeShrinkTree' smart constructor builds a
--- 'ShrinkTree' out of a value @x@ and a shrinking function @f@, in such a way
--- that the nth 'child' index lookup returns the nth shrinking cadidate
--- among @f x@.
-prop_childLookup :: SomeType -> Property
-prop_childLookup (SomeType (_ :: Proxy a)) = property $ do
-  len <- chooseInt (0, 100)
-  fs <- vectorOf len $ arbitrary @(Fun a a)
-  let f = traverse applyFun fs
-  x <- arbitrary @a
-  n <- chooseInt (0, len - 1)
-  pure $ Ix.lookup (Ix.child n) (makeShrinkTree f x) === Just (f x !! n)
+
+prop_childLookup_SomeType :: SomeType -> Property
+prop_childLookup_SomeType (SomeType proxy) =
+  property $ prop_childLookup proxy
+
+-- | Given an arbitrary shrinking function @f@ and a value @x@, the @n@th child
+-- in 'makeShrinkTree f x' is the @n@th entry of @f x@, if it exists.
+prop_childLookup
+  :: forall a. (Eq a, Show a) => Proxy a -> a -> Shrinker a -> Property
+prop_childLookup _ x (Shrinker fs) =
+  let
+    len = length fs
+
+    shrinker :: a -> [a]
+    shrinker = traverse applyFun fs
+
+    lookupChild :: Int -> Maybe a
+    lookupChild ix = Ix.lookup (Ix.child ix) (makeShrinkTree shrinker x)
+
+  in (===)
+    (shrinker x)
+    (catMaybes $ fmap lookupChild [0..(len - 1)])
+
+-- Helpers
+----------
+
+-- | Type representing an arbitrary shrinking function for a type @a@. We use this
+-- to assert properties relating 'makeShrinkTree' to the shrinker it is built from.
+data Shrinker a = Shrinker [Fun a a]
+  deriving (Show)
+
+instance (Arbitrary a, CoArbitrary a, Function a) => Arbitrary (Shrinker a) where
+  arbitrary = do
+    len <- chooseInt (0, 100)
+    fs :: [Fun a a] <- vectorOf len arbitrary
+    pure $ Shrinker fs
