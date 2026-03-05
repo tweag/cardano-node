@@ -10,7 +10,7 @@ module Test.Cardano.Conformance.ShrinkIndex (tests) where
 
 import           Control.Comonad (Comonad (extract))
 import           Data.Kind (Type)
-import           Data.Maybe (catMaybes)
+import           Data.Maybe (mapMaybe)
 import           Data.Proxy (Proxy (..))
 import           Data.Typeable (Typeable, eqT, typeRep)
 
@@ -137,20 +137,17 @@ prop_childLookup _ x (Shrinker fs) =
     lookupChild :: Int -> Maybe a
     lookupChild ix = Ix.lookup (Ix.child ix) (makeShrinkTree shrinker x)
 
-  in (===)
-    (shrinker x)
-    (catMaybes $ fmap lookupChild [0..(len - 1)])
+  in shrinker x === mapMaybe lookupChild [0..(len - 1)]
 
--- Helpers
-----------
+-- * Helpers
 
 -- | Type representing an arbitrary shrinking function for a type @a@. We use this
 -- to assert properties relating 'makeShrinkTree' to the shrinker it is built from.
-data Shrinker a = Shrinker [Fun a a]
+newtype Shrinker a = Shrinker [Fun a a]
   deriving (Show)
 
 instance (Arbitrary a, CoArbitrary a, Function a) => Arbitrary (Shrinker a) where
   arbitrary = do
     len <- chooseInt (0, 100)
-    fs :: [Fun a a] <- vectorOf len arbitrary
+    fs <- vectorOf len arbitrary
     pure $ Shrinker fs
