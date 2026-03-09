@@ -35,7 +35,9 @@ packages:
   trace-resources
   trace-forward
 --  ../ouroboros-consensus/ouroboros-consensus
+--  ../ouroboros-consensus/ouroboros-consensus-cardano
 --  ../ouroboros-consensus/ouroboros-consensus-diffusion
+--  ../ouroboros-consensus/ouroboros-consensus-protocol
 
 -- Needed when cross compiling
 extra-packages: alex
@@ -92,8 +94,8 @@ source-repository-package
 source-repository-package
     type: git
     location: https://github.com/tweag/ouroboros-consensus
-    tag: f113d1eb8c6d69df47a24afe7a104cf796d1c5d8
-    --sha256: sha256-P5yRuok5kj5VTglZZkHRIHy53YbpSWtJHPvONDsXLi4= 
+    tag: be4260c87cb60f70d52ba4a24d24e7edcc53d6b8 
+    --sha256: sha256-KgElJQWGAu430Y8OBKRti/RMBIDpdVazXkI3UGzfD4c= 
     subdir:
       ouroboros-consensus
       ouroboros-consensus-cardano

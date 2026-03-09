@@ -49,6 +49,7 @@ import           Ouroboros.Network.Diffusion.Configuration as Configuration
 import qualified Ouroboros.Network.Diffusion.Configuration as Ouroboros
 import qualified Ouroboros.Network.Mux as Mux
 import qualified Ouroboros.Network.PeerSelection.Governor as PeerSelection
+import           Ouroboros.Network.Protocol.LocalStateQuery.Type(LeashID(..))
 
 import           Control.Concurrent (getNumCapabilities)
 import           Control.Monad (unless, void, when)
@@ -58,6 +59,8 @@ import           Data.Bifunctor (Bifunctor (..))
 import           Data.Hashable (Hashable)
 import           Data.Maybe
 import           Data.Monoid (Last (..))
+import           Data.Set (Set)
+import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Data.Time.Clock (DiffTime, secondsToDiffTime)
@@ -196,6 +199,8 @@ data NodeConfiguration
        , ncGenesisConfig :: GenesisConfig
 
        , ncResponderCoreAffinityPolicy :: ResponderCoreAffinityPolicy
+
+       , ncCrucialLsqClients :: Set LeashID
        } deriving (Eq, Show)
 
 -- | We expose the `Ouroboros.Network.Mux.ForkPolicy` as a `NodeConfiguration` field.
@@ -296,6 +301,7 @@ data PartialNodeConfiguration
        , pncGenesisConfigFlags :: !(Last GenesisConfigFlags)
 
        , pncResponderCoreAffinityPolicy :: !(Last ResponderCoreAffinityPolicy)
+       , pncCrucialLsqClients :: !(Last (Set LeashID))
        } deriving (Eq, Generic, Show)
 
 instance AdjustFilePaths PartialNodeConfiguration where
@@ -412,6 +418,10 @@ instance FromJSON PartialNodeConfiguration where
         <$> v .:? "ResponderCoreAffinityPolicy"
         <*> v .:? "ForkPolicy" -- deprecated
 
+      pncCrucialLsqClients <- fmap Last $ do
+        clients :: Maybe (Set Integer) <- v .:? "CrucialLsqClients"
+        pure $ fmap (Set.map $ LeashID . fromIntegral) clients 
+
       pure PartialNodeConfiguration {
              pncProtocolConfig
            , pncSocketConfig = Last . Just $ SocketConfig mempty mempty mempty pncSocketPath
@@ -459,6 +469,7 @@ instance FromJSON PartialNodeConfiguration where
            , pncPeerSharing
            , pncGenesisConfigFlags
            , pncResponderCoreAffinityPolicy
+           , pncCrucialLsqClients
            }
     where
       parseMempoolCapacityBytesOverride v = parseNoOverride <|> parseOverride
@@ -724,6 +735,7 @@ defaultPartialNodeConfiguration =
     , pncGenesisConfigFlags = Last (Just defaultGenesisConfigFlags)
       -- https://ouroboros-consensus.cardano.intersectmbo.org/haddocks/ouroboros-consensus-diffusion/Ouroboros-Consensus-Node-Genesis.html#v:defaultGenesisConfigFlags
     , pncResponderCoreAffinityPolicy = Last $ Just NoResponderCoreAffinity
+    , pncCrucialLsqClients = mempty
     }
 
 lastOption :: Parser a -> Parser (Last a)
@@ -845,6 +857,8 @@ makeNodeConfiguration pnc = do
 
   ncResponderCoreAffinityPolicy <- lastToEither "Missing ResponderCoreAffinityPolicy" $ pncResponderCoreAffinityPolicy pnc
 
+  ncCrucialLsqClients <- lastToEither "Missing CrucialLsqClients" $ pncCrucialLsqClients pnc
+
   let deadlineTargets =
         PeerSelectionTargets {
           targetNumberOfRootPeers = ncDeadlineTargetOfRootPeers,
@@ -922,6 +936,7 @@ makeNodeConfiguration pnc = do
              , ncConsensusMode
              , ncGenesisConfig
              , ncResponderCoreAffinityPolicy
+             , ncCrucialLsqClients
              }
 
 ncProtocol :: NodeConfiguration -> Protocol

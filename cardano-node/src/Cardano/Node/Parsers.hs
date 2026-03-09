@@ -144,6 +144,7 @@ nodeRunParser = do
            , pncPeerSharing = mempty
            , pncGenesisConfigFlags = mempty
            , pncResponderCoreAffinityPolicy = mempty
+           , pncCrucialLsqClients = mempty
            }
 
 parseSocketPath :: Text -> Parser SocketPath
