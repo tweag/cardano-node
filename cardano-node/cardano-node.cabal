@@ -318,7 +318,6 @@ library conformance-testlib
                       , ouroboros-consensus:{ouroboros-consensus, unstable-consensus-testlib}
                       , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
                       , ouroboros-network-api
-                      , aeson
                       , bytestring
                       , ouroboros-network-framework
                       , network
