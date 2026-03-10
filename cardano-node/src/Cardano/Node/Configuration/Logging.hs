@@ -61,15 +61,15 @@ import           Cardano.Slotting.Slot (EpochSize (..))
 import           Cardano.Tracing.Config (TraceOptions (..))
 import           Cardano.Tracing.OrphanInstances.Common ()
 import qualified Ouroboros.Consensus.BlockchainTime.WallClock.Types as WCT
-import           Ouroboros.Consensus.Byron.ByronHFC (byronLedgerConfig)
-import           Ouroboros.Consensus.Byron.Ledger.Conversions
-import           Ouroboros.Consensus.Cardano.Block
-import           Ouroboros.Consensus.Cardano.CanHardFork
-import qualified Ouroboros.Consensus.Config as Consensus
-import           Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (..))
-import           Ouroboros.Consensus.HardFork.Combinator.Degenerate
-import           Ouroboros.Consensus.Node.ProtocolInfo
-import           Ouroboros.Consensus.Shelley.Ledger.Ledger
+-- import           Ouroboros.Consensus.Byron.ByronHFC (byronLedgerConfig)
+-- import           Ouroboros.Consensus.Byron.Ledger.Conversions
+-- import           Ouroboros.Consensus.Cardano.Block
+-- import           Ouroboros.Consensus.Cardano.CanHardFork
+-- import qualified Ouroboros.Consensus.Config as Consensus
+-- import           Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (..))
+-- import           Ouroboros.Consensus.HardFork.Combinator.Degenerate
+-- import           Ouroboros.Consensus.Node.ProtocolInfo
+-- import           Ouroboros.Consensus.Shelley.Ledger.Ledger
 
 import qualified Control.Concurrent as Conc
 import qualified Control.Concurrent.Async as Async
@@ -81,19 +81,19 @@ import           Control.Monad (forM_, forever, void, when)
 import           Control.Monad.Except (ExceptT)
 import           Control.Monad.IO.Class (MonadIO (..))
 import           Control.Monad.Trans.Except.Extra (catchIOExceptT)
-import           Data.List (nub)
+-- import           Data.List (nub)
 import qualified Data.Map.Strict as Map
 import           Data.Maybe (isJust)
-import           Data.Text (Text, pack)
+import           Data.Text (Text)
 import           Data.Time.Clock (UTCTime, getCurrentTime)
-import           Data.Version (showVersion)
+-- import           Data.Version (showVersion)
 import           GHC.Conc (labelThread, myThreadId)
 import           System.Metrics.Counter (Counter)
 import           System.Metrics.Gauge (Gauge)
 import           System.Metrics.Label (Label)
 import qualified System.Remote.Monitoring.Wai as EKG
 
-import           Paths_cardano_node (version)
+-- import           Paths_cardano_node (version)
 
 --------------------------------
 -- Layer
@@ -331,7 +331,8 @@ nodeBasicInfo :: NodeConfiguration
               -> SomeConsensusProtocol
               -> UTCTime
               -> IO [LogObject Text]
-nodeBasicInfo nc (SomeConsensusProtocol whichP pForInfo) nodeStartTime' = pure []
+nodeBasicInfo _ _ _ = pure []
+  -- nodeBasicInfo nc (SomeConsensusProtocol whichP pForInfo) nodeStartTime' = pure []
   -- meta <- mkLOMeta Notice Public
   -- let cfg = pInfoConfig $ fst $ Api.protocolInfo @IO pForInfo
   --     protocolDependentItems =
@@ -361,20 +362,20 @@ nodeBasicInfo nc (SomeConsensusProtocol whichP pForInfo) nodeStartTime' = pure [
   --     logObjects =
   --       map (\(nm, msg) -> LogObject ("basicInfo." <> nm) meta (LogMessage msg)) items
   -- return logObjects
- where
-  getGenesisValuesByron cfg config =
-    let genesis = byronLedgerConfig config
-    in [ ("systemStartTime",  textShow (WCT.getSystemStart . getSystemStart $ Consensus.configBlock cfg))
-       , ("slotLengthByron",  textShow (WCT.getSlotLength . fromByronSlotLength $ genesisSlotLength genesis))
-       , ("epochLengthByron", textShow (unEpochSize . fromByronEpochSlots $ Gen.configEpochSlots genesis))
-       ]
-  getGenesisValues era config =
-    let genesis = shelleyLedgerGenesis $ shelleyLedgerConfig config
-    in [ ("systemStartTime",          textShow (SL.sgSystemStart genesis))
-       , ("slotLength" <> era,        textShow (WCT.getSlotLength
-                                                . WCT.mkSlotLength
-                                                . SL.fromNominalDiffTimeMicro
-                                                $ SL.sgSlotLength genesis))
-       , ("epochLength" <> era,       textShow (unEpochSize . SL.sgEpochLength $ genesis))
-       , ("slotsPerKESPeriod" <> era, textShow (SL.sgSlotsPerKESPeriod genesis))
-       ]
+  -- where
+  -- getGenesisValuesByron cfg config =
+  --   let genesis = byronLedgerConfig config
+  --   in [ ("systemStartTime",  textShow (WCT.getSystemStart . getSystemStart $ Consensus.configBlock cfg))
+  --      , ("slotLengthByron",  textShow (WCT.getSlotLength . fromByronSlotLength $ genesisSlotLength genesis))
+  --      , ("epochLengthByron", textShow (unEpochSize . fromByronEpochSlots $ Gen.configEpochSlots genesis))
+  --      ]
+  -- getGenesisValues era config =
+  --   let genesis = shelleyLedgerGenesis $ shelleyLedgerConfig config
+  --   in [ ("systemStartTime",          textShow (SL.sgSystemStart genesis))
+  --      , ("slotLength" <> era,        textShow (WCT.getSlotLength
+  --                                               . WCT.mkSlotLength
+  --                                               . SL.fromNominalDiffTimeMicro
+  --                                               $ SL.sgSlotLength genesis))
+  --      , ("epochLength" <> era,       textShow (unEpochSize . SL.sgEpochLength $ genesis))
+  --      , ("slotsPerKESPeriod" <> era, textShow (SL.sgSlotsPerKESPeriod genesis))
+  --      ]

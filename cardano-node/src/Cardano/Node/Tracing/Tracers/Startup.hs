@@ -16,30 +16,30 @@ module Cardano.Node.Tracing.Tracers.Startup
   )  where
 
 import           Cardano.Api (NetworkMagic (..), SlotNo (..))
-import qualified Cardano.Api as Api
+-- import qualified Cardano.Api as Api
 
-import qualified Cardano.Chain.Genesis as Gen
-import           Cardano.Git.Rev (gitRev)
-import           Cardano.Ledger.Shelley.API as SL
+-- import qualified Cardano.Chain.Genesis as Gen
+-- import           Cardano.Git.Rev (gitRev)
+-- import           Cardano.Ledger.Shelley.API as SL
 import           Cardano.Logging
-import           Cardano.Node.Configuration.POM (NodeConfiguration, ncProtocol)
+import           Cardano.Node.Configuration.POM (NodeConfiguration)
 import           Cardano.Node.Configuration.Socket
 import           Cardano.Node.Protocol (SomeConsensusProtocol (..))
 import           Cardano.Node.Startup
 import           Cardano.Node.Types (PeerSnapshotFile (..))
-import           Cardano.Slotting.Slot (EpochSize (..))
-import qualified Ouroboros.Consensus.BlockchainTime.WallClock.Types as WCT
-import           Ouroboros.Consensus.Byron.ByronHFC (byronLedgerConfig)
-import           Ouroboros.Consensus.Byron.Ledger.Conversions (fromByronEpochSlots,
-                   fromByronSlotLength, genesisSlotLength)
-import           Ouroboros.Consensus.Cardano.Block (HardForkLedgerConfig (..))
-import           Ouroboros.Consensus.Cardano.CanHardFork (ShelleyPartialLedgerConfig (..))
-import qualified Ouroboros.Consensus.Config as Consensus
-import           Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (..))
-import           Ouroboros.Consensus.HardFork.Combinator.Degenerate (HardForkLedgerConfig (..))
+-- import           Cardano.Slotting.Slot (EpochSize (..))
+-- import qualified Ouroboros.Consensus.BlockchainTime.WallClock.Types as WCT
+-- import           Ouroboros.Consensus.Byron.ByronHFC (byronLedgerConfig)
+-- import           Ouroboros.Consensus.Byron.Ledger.Conversions (fromByronEpochSlots,
+--                    fromByronSlotLength, genesisSlotLength)
+-- import           Ouroboros.Consensus.Cardano.Block (HardForkLedgerConfig (..))
+-- import           Ouroboros.Consensus.Cardano.CanHardFork (ShelleyPartialLedgerConfig (..))
+-- import qualified Ouroboros.Consensus.Config as Consensus
+-- import           Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode (..))
+-- import           Ouroboros.Consensus.HardFork.Combinator.Degenerate (HardForkLedgerConfig (..))
 import           Ouroboros.Consensus.Node.NetworkProtocolVersion
-import           Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo (..))
-import           Ouroboros.Consensus.Shelley.Ledger.Ledger (shelleyLedgerGenesis)
+-- import           Ouroboros.Consensus.Node.ProtocolInfo (ProtocolInfo (..))
+-- import           Ouroboros.Consensus.Shelley.Ledger.Ledger (shelleyLedgerGenesis)
 import           Ouroboros.Network.NodeToClient (LocalAddress (..))
 import           Ouroboros.Network.NodeToNode (DiffusionMode (..))
 import           Ouroboros.Network.PeerSelection.LedgerPeers.Type (AfterSlot (..),
@@ -52,11 +52,11 @@ import qualified Data.Aeson as Aeson
 import           Data.List (intercalate)
 import qualified Data.Map.Strict as Map
 import           Data.Text (Text, pack)
-import           Data.Time (getCurrentTime)
+-- import           Data.Time (getCurrentTime)
 import           Data.Time.Clock.POSIX (POSIXTime, utcTimeToPOSIXSeconds)
-import           Data.Version (showVersion)
+-- import           Data.Version (showVersion)
 
-import           Paths_cardano_node (version)
+-- import           Paths_cardano_node (version)
 
 
 getStartupInfo
@@ -64,7 +64,8 @@ getStartupInfo
   -> SomeConsensusProtocol
   -> FilePath
   -> IO [StartupTrace blk]
-getStartupInfo nc (SomeConsensusProtocol whichP pForInfo) fp = pure []
+getStartupInfo _ _ _ = pure []
+  -- getStartupInfo nc (SomeConsensusProtocol whichP pForInfo) fp = pure []
   -- nodeStartTime <- getCurrentTime
   -- let cfg = pInfoConfig $ fst $ Api.protocolInfo @IO pForInfo
   --     basicInfoCommon = BICommon $ BasicInfoCommon {

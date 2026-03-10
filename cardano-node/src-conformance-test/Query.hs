@@ -19,7 +19,6 @@ import           Cardano.Api.Internal.IPC (ChainSyncClient (..), LocalChainSyncC
 
 import           Cardano.Node.Run ()
 import           Ouroboros.Consensus.Block
-import           Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
 import qualified Ouroboros.Consensus.Ledger.Query as Consensus
 import           Ouroboros.Consensus.Ledger.SupportsMempool
 import qualified Ouroboros.Consensus.Network.NodeToClient as Consensus
