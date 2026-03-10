@@ -7,11 +7,11 @@
 
 module Server (run) where
 
-import           Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode, getNetworkMagic)
+import           Ouroboros.Consensus.Block (CodecConfig, Header)
 import           Ouroboros.Consensus.Node.NetworkProtocolVersion
-import           Ouroboros.Consensus.Node.ProtocolInfo (NumCoreNodes (..))
 import           Ouroboros.Consensus.Node.Run (SerialiseNodeToNodeConstraints)
 import           Ouroboros.Consensus.Util.IOLike
+import           Ouroboros.Network.Magic (NetworkMagic)
 import           Ouroboros.Network.ErrorPolicy (nullErrorPolicies)
 import           Ouroboros.Network.IOManager (withIOManager)
 import           Ouroboros.Network.Mux
@@ -30,8 +30,7 @@ import qualified Network.Mux as Mux
 import           Network.Socket (SockAddr (..))
 
 import           Test.Consensus.PeerSimulator.Resources (PeerResources)
-import qualified Test.Util.TestBlock as TB
-import           Test.Util.TestBlock (TestBlock)
+import           Ouroboros.Network.Util.ShowProxy (ShowProxy)
 
 import           MiniProtocols (peerSimServer)
 
@@ -76,8 +75,8 @@ run ::
   forall blk.
   ( SupportedNetworkProtocolVersion blk
   , SerialiseNodeToNodeConstraints blk
-  , ConfigSupportsNode blk
-  , blk ~ TestBlock
+  , ShowProxy blk
+  , ShowProxy (Header blk)
   ) =>
   PeerResources IO blk ->
   -- | A TMVar for the chainsync channel that we will fill in once the node connects.
