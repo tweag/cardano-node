@@ -338,23 +338,24 @@ executable conformance-test-runner
   main-is:              conformance-test-runner.hs
   build-depends:        base
                       , containers
-                      , optparse-applicative
+                      -- , optparse-applicative
                       , ouroboros-network:{ouroboros-network}
                       , ouroboros-consensus:{ouroboros-consensus, unstable-consensus-testlib}
+                      -- , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
                       , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
                       , ouroboros-network-api
                       , aeson
-                      , bytestring
-                      , ouroboros-network-framework
+                      -- , bytestring
+                      -- , ouroboros-network-framework
                       , network
-                      , network-mux
+                      -- , network-mux
                       , contra-tracer
-                      , resource-registry
-                      , serialise
-                      , ouroboros-network-protocols
-                      , cborg
-                      , ouroboros-consensus-diffusion
-                      , io-classes
+                      -- , resource-registry
+                      -- , serialise
+                      -- , ouroboros-network-protocols
+                      -- , cborg
+                      -- , ouroboros-consensus-diffusion
+                      -- , io-classes
                       , cardano-node:{cardano-node, conformance-testlib}
                       , QuickCheck
                       , cardano-api
@@ -375,7 +376,7 @@ executable conformance-test-viewer
                       , errors
                       , mtl
                       , optparse-applicative
-                      , ouroboros-consensus-cardano
+                      -- , ouroboros-consensus-cardano
                       , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
                       , QuickCheck
 

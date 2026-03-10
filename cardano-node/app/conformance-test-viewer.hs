@@ -22,12 +22,12 @@ import           Data.Proxy
 import           Data.List (groupBy)
 import qualified ExitCodes as Exit
 import           Options.Applicative
-import           Ouroboros.Consensus.Byron.Ledger.Block
+-- import           Ouroboros.Consensus.Byron.Ledger.Block
 import           ShrinkIndex
 import           System.Environment (getArgs)
 import           System.IO (hPutStr, hPutStrLn, stderr)
 import           Test.Consensus.OrphanInstances ()
-import           Test.Consensus.PointSchedule (GenesisTest, PointSchedule)
+-- import           Test.Consensus.PointSchedule (GenesisTest, PointSchedule)
 import           Test.QuickCheck (Arbitrary(..))
 import           Text.Read (readEither)
 

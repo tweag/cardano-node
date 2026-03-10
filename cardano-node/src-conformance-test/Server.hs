@@ -7,11 +7,13 @@
 
 module Server (run) where
 
-import           Ouroboros.Consensus.Block (CodecConfig, Header)
-import           Ouroboros.Consensus.Node.NetworkProtocolVersion
+import           Ouroboros.Consensus.Config.SupportsNode (getNetworkMagic)
+-- import           Ouroboros.Consensus.Block (CodecConfig, Header)
+-- import           Ouroboros.Consensus.Node.NetworkProtocolVersion
+import           Ouroboros.Consensus.Node.ProtocolInfo (NumCoreNodes (..))
 import           Ouroboros.Consensus.Node.Run (SerialiseNodeToNodeConstraints)
 import           Ouroboros.Consensus.Util.IOLike
-import           Ouroboros.Network.Magic (NetworkMagic)
+-- import           Ouroboros.Network.Magic (NetworkMagic)
 import           Ouroboros.Network.ErrorPolicy (nullErrorPolicies)
 import           Ouroboros.Network.IOManager (withIOManager)
 import           Ouroboros.Network.Mux
@@ -30,9 +32,12 @@ import qualified Network.Mux as Mux
 import           Network.Socket (SockAddr (..))
 
 import           Test.Consensus.PeerSimulator.Resources (PeerResources)
-import           Ouroboros.Network.Util.ShowProxy (ShowProxy)
+-- import           Ouroboros.Network.Util.ShowProxy (ShowProxy)
 
 import           MiniProtocols (peerSimServer)
+
+import qualified Test.Util.TestBlock as TB
+import           Test.Util.TestBlock (TestBlock)
 
 
 -- | Glue code for using just the bits from the Diffusion Layer that we need in
@@ -73,10 +78,8 @@ serve sockAddr application = withIOManager \iocp -> do
 
 run ::
   forall blk.
-  ( SupportedNetworkProtocolVersion blk
-  , SerialiseNodeToNodeConstraints blk
-  , ShowProxy blk
-  , ShowProxy (Header blk)
+  ( SerialiseNodeToNodeConstraints blk
+  , blk ~ TestBlock
   ) =>
   PeerResources IO blk ->
   -- | A TMVar for the chainsync channel that we will fill in once the node connects.

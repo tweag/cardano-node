@@ -11,6 +11,11 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+{-# OPTIONS_GHC -Wno-missing-fields #-} -- TODO: Remove this
+{-# OPTIONS_GHC -Wno-orphans #-} -- TODO: Remove this
+{-# OPTIONS_GHC -Wno-redundant-constraints #-} -- TODO: Remove this
+{-# OPTIONS_GHC -Wno-unused-imports #-} -- TODO: Remove this
+
 module Main (main) where
 
 import           Cardano.Api (ConsensusModeParams (..), EpochSlots (..), File (..), NetworkId (..))
@@ -45,8 +50,8 @@ import           Control.Monad (unless, when)
 import           Control.Monad.Trans.Class (lift)
 import           Control.Monad.Trans.Except
 import           Control.Tracer (Tracer (..), nullTracer, traceWith)
-import           Data.Aeson (Value, encode, encodeFile, object, throwDecode, (.=))
-import qualified Data.ByteString.Lazy.Char8 as BSL8
+import           Data.Aeson (Value, encode, encodeFile, object, {- throwDecode, -} (.=))
+-- import qualified Data.ByteString.Lazy.Char8 as BSL8
 import           Data.Foldable
 import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Map (Map)
