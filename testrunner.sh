@@ -62,9 +62,16 @@ TEST_PID=$!
 # test-runner might require a build, so we can't necessarily start cardano-node
 # immediately. Therefore, we wait until test-runner starts listening on port
 # 6000. Also check that the topology file has been created.
+MAX_WAIT_ITERS=50
+wait_iters=0
 while ! nc -z localhost 6000 || [ ! -s /tmp/topology.file ]; do
+  if [ "$wait_iters" -ge "$MAX_WAIT_ITERS" ]; then
+    echo "Timed out waiting for test runner startup after ${MAX_WAIT_ITERS} iterations"
+    exit 1
+  fi
   echo "Waiting for test-runner to start and create topology file..."
   sleep 0.5
+  wait_iters=$((wait_iters + 1))
 done
 
 # Now that the test harness is up, we can start the NUT, which will connect to
@@ -81,8 +88,7 @@ echo "Waiting for test-runner to finish..."
 wait "$TEST_PID"
 TEST_RESULT=$?
 
-# Once it has finished, gracefully request that the NUT exit.
-reap_process "$NUT_PID"
+cleanup()
 
 # Exit with the same code that test-runner gave.
 echo "Test runner exited with code $TEST_RESULT"
