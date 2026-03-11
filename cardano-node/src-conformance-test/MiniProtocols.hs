@@ -1,7 +1,5 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE EmptyCase #-}
@@ -17,7 +15,7 @@
 -- | Implements a server that waits for an incoming connection to ChainSync or
 -- BlockFetch, and forwards the resulting channels to a TMVar so they can be
 -- picked up by the peer simulator.
-module MiniProtocols (peerSimServer) where
+module MiniProtocols (peerSimServer, forallVersionsN2N) where
 
 import           Ouroboros.Consensus.Block
 import           Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
@@ -49,7 +47,6 @@ import           Control.Tracer
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map.Strict as Map
 import           Data.Void (Void)
-import           GHC.Generics (Generic)
 import qualified Network.Mux as Mux
 
 import           Test.Consensus.PeerSimulator.Resources (BlockFetchResources (..),
@@ -84,7 +81,9 @@ peerSimServer res csChanTMV bfChanTMV codecCfg encAddr decAddr networkMagic = do
           } =
             Consensus.N2N.defaultCodecs codecCfg blockVersion encAddr decAddr version
     OuroborosApplication
-      [ mkMiniProtocol
+      [ -- Responds to KeepAlive pings from the NUT. Started on demand by
+        -- either side; without it the NUT would time out the connection.
+        mkMiniProtocol
           Mux.StartOnDemandAny
           N2N.keepAliveMiniProtocolNum
           N2N.keepAliveProtocolLimits
@@ -92,6 +91,9 @@ peerSimServer res csChanTMV bfChanTMV codecCfg encAddr decAddr networkMagic = do
           $ \_ctx channel ->
             runPeer nullTracer cKeepAliveCodec channel $
               keepAliveServerPeer keepAliveServer
+        -- Serves the simulated chain to the NUT via the typed ChainSync
+        -- server from the peer simulator. Signals readiness via csChanTMV
+        -- so the test harness knows the NUT has connected to this peer.
       , mkMiniProtocol
           Mux.StartOnDemand
           N2N.chainSyncMiniProtocolNum
@@ -101,6 +103,8 @@ peerSimServer res csChanTMV bfChanTMV codecCfg encAddr decAddr networkMagic = do
             atomically $ writeTVar csChanTMV True
             runPeer nullTracer cChainSyncCodec channel
               $ chainSyncServerPeer $ csrServer $ prChainSync res
+        -- Serves block bodies requested by the NUT after it has seen their
+        -- headers via ChainSync. Signals readiness via bfChanTMV.
       , mkMiniProtocol
           Mux.StartOnDemand
           N2N.blockFetchMiniProtocolNum
@@ -110,6 +114,8 @@ peerSimServer res csChanTMV bfChanTMV codecCfg encAddr decAddr networkMagic = do
             atomically $ writeTVar bfChanTMV True
             runPeer nullTracer cBlockFetchCodec channel
               $ blockFetchServerPeer $ bfrServer $ prBlockFetch res
+        -- Required by the N2N protocol set but unused in this test context:
+        -- simulated peers do not receive transactions from the NUT.
       , mkMiniProtocol
           Mux.StartOnDemand
           N2N.txSubmissionMiniProtocolNum
@@ -132,22 +138,23 @@ mkMiniProtocol miniProtocolStart miniProtocolNum limits proto =
     , miniProtocolStart
     }
 
--- | The ChainSync specification requires sending a rollback instruction to the
--- intersection point right after an intersection has been negotiated. (Opening
--- a connection implicitly negotiates the Genesis point as the intersection.)
-data ChainSyncIntersection blk
-  = JustNegotiatedIntersection !(Point blk)
-  | AlreadySentRollbackToIntersection
-  deriving stock Generic
-  deriving anyclass NoThunks
-
+-- | Builds a 'Versions' map suitable for use with 'N2N.connectTo' or
+-- 'N2N.withServer'. It advertises every 'NodeToNodeVersion' that the given
+-- block type declares as supported, each paired with 'NodeToNodeVersionData'
+-- carrying the supplied 'NetworkMagic'. During the N2N handshake both peers
+-- present their version maps and agree on the highest mutually supported
+-- version; the supplied factory @mkR@ is then called with that version and
+-- its corresponding 'BlockNodeToNodeVersion' to produce the application.
+--
+-- The version data is configured with 'InitiatorOnlyDiffusionMode' and
+-- 'PeerSharingDisabled' — appropriate for a test client that connects
+-- outward but does not participate in peer discovery.
 forallVersionsN2N
   :: SupportedNetworkProtocolVersion blk
-   => Proxy blk
+  => Proxy blk
   -> NetworkMagic
-   ->
-  (NodeToNodeVersion -> BlockNodeToNodeVersion blk -> r) ->
-  Versions NodeToNodeVersion NodeToNodeVersionData r
+  -> (NodeToNodeVersion -> BlockNodeToNodeVersion blk -> r)
+  -> Versions NodeToNodeVersion NodeToNodeVersionData r
 forallVersionsN2N blk networkMagic mkR =
   Versions $
     flip Map.mapWithKey (supportedNodeToNodeVersions blk) $ \version blockVersion ->
