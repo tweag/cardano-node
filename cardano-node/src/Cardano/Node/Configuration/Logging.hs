@@ -25,8 +25,8 @@ module Cardano.Node.Configuration.Logging
   , LOContent (..)
   ) where
 
-import           Cardano.Api (textShow)
-import qualified Cardano.Api as Api
+-- import           Cardano.Api (textShow)
+-- import qualified Cardano.Api as Api
 
 import           Cardano.BM.Backend.Aggregation (plugin)
 import           Cardano.BM.Backend.EKGView (plugin)
@@ -51,16 +51,16 @@ import           Cardano.BM.Stats
 import           Cardano.BM.Stats.Resources
 import qualified Cardano.BM.Trace as Trace
 import           Cardano.BM.Tracing
-import qualified Cardano.Chain.Genesis as Gen
+-- import qualified Cardano.Chain.Genesis as Gen
 import           Cardano.Git.Rev (gitRev)
-import qualified Cardano.Ledger.Shelley.API as SL
-import           Cardano.Node.Configuration.POM (NodeConfiguration (..), ncProtocol)
+-- import qualified Cardano.Ledger.Shelley.API as SL
+import           Cardano.Node.Configuration.POM (NodeConfiguration (..) {-, ncProtocol -})
 import           Cardano.Node.Protocol.Types (SomeConsensusProtocol (..))
 import           Cardano.Node.Types
-import           Cardano.Slotting.Slot (EpochSize (..))
+-- import           Cardano.Slotting.Slot (EpochSize (..))
 import           Cardano.Tracing.Config (TraceOptions (..))
 import           Cardano.Tracing.OrphanInstances.Common ()
-import qualified Ouroboros.Consensus.BlockchainTime.WallClock.Types as WCT
+-- import qualified Ouroboros.Consensus.BlockchainTime.WallClock.Types as WCT
 -- import           Ouroboros.Consensus.Byron.ByronHFC (byronLedgerConfig)
 -- import           Ouroboros.Consensus.Byron.Ledger.Conversions
 -- import           Ouroboros.Consensus.Cardano.Block
