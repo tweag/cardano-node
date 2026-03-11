@@ -3,20 +3,21 @@
 # This is a script which helps connect the test-runner to a cardano-node. The
 # exact interleaving of processes here is nontrivial:
 #
-# 1. Start test-runner
-# 2. Start cardano-node
+# 1. Start test-runner (generates topology file, starts simulated peers on --port)
+# 2. Start cardano-node (reads topology file, listens for N2N on NUT_NTN_PORT)
 # 3. After test-runner closes, kill cardano-node
 #
-# In addition, test-runner must know about a socket-path that will be created
-# by cardano-node, and cardano-node needs a topology file created by
-# test-runner.
+# test-runner generates a topology file that cardano-node reads, and queries
+# the NUT's chain tip via node-to-node ChainSync on NUT_NTN_PORT once done.
+
+NUT_NTN_PORT=3001
 
 export LC_ALL=C.UTF-8
 cabal run cardano-node:conformance-test-runner -- \
-  --topology-file=/tmp/topology.file \
-  --socket-path=/tmp/cardano.socket \
-  --port=6000 \
-  unused_mandatory_argument &
+    --topology-file=/tmp/topology.file \
+    --nut-port="$NUT_NTN_PORT" \
+    --port=6000 \
+    unused_mandatory_argument &
 TEST_PID=$!
 
 # test-runner might require a build, so we can't necessarily start cardano-node
@@ -28,9 +29,11 @@ done
 
 # Now that the test harness is up, we can start the NUT, which will connect to
 # test-runner via the generated topology file.
+# REVIEW: We could need to pass in a custom config here, e.g.
+# --config=configuration/tester/mainnet-config.json \
 cabal run cardano-node:cardano-node -- run \
     --topology=/tmp/topology.file \
-    --socket-path=/tmp/cardano.socket 1>/dev/null &
+    --port="$NUT_NTN_PORT" & # 1>/dev/null &
 NUT_PID=$!
 
 # Wait for test-runner to exit, and capture its exit code.

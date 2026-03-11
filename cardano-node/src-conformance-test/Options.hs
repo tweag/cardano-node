@@ -2,7 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 -- | Command line argument parser for the test runner.
-module Options (parseOptions, Options (..)) where
+module Options (parseOptions, Options (..), NutPort, getNutPort, SimPeerPort, getSimPeerPort) where
 
 import           Ouroboros.Network.PeerSelection.RelayAccessPoint (PortNumber)
 
@@ -16,11 +16,15 @@ import           System.IO (hPutStrLn, stderr)
 import           ExitCodes
 import           ShrinkIndex
 
+newtype NutPort = NutPort { getNutPort :: PortNumber }
+
+newtype SimPeerPort = SimPeerPort { getSimPeerPort :: PortNumber }
+
 data Options = Options
   { optTestFile :: FilePath
   , optOutputTopologyFile :: FilePath
-  , optSocketPath :: FilePath
-  , optPort :: PortNumber
+  , optSimPeerPort :: SimPeerPort
+  , optNutPort :: NutPort
   , optMinimalTestOutput :: Maybe FilePath
   , optShrinkIndex :: Maybe ShrinkIndex
   }
@@ -54,14 +58,23 @@ optsP = do
         , help "File path for the testing topology file (JSON)"
         ]
 
-  optPort <-
-    option auto $
+  optSimPeerPort <-
+    fmap SimPeerPort $ option auto $
       mconcat
         [ long "port"
         , short 'p'
         , metavar "PORT_NUMBER"
         , value 3001
         , help "Starting port for simulated peers"
+        ]
+
+  optNutPort <-
+    fmap NutPort $ option auto $
+      mconcat
+        [ long "nut-port"
+        , short 'n'
+        , metavar "PORT_NUMBER"
+        , help "Listening port of the node under test"
         ]
 
   optMinimalTestOutput <-
@@ -82,19 +95,10 @@ optsP = do
         , help "An index pointing to a shrunk test case"
         ]
 
-  optSocketPath <-
-    strOption $
-      mconcat
-        [ long "socket-path"
-        , short 's'
-        , metavar "FILEPATH"
-        , help "Filepath to a Unix domain socket for communicating to the NUT"
-        ]
-
 
   pure Options{..}
 
-parseOptions :: [String] -> IO (Options)
+parseOptions :: [String] -> IO Options
 parseOptions args =
   case execParserPure defaultPrefs options args of
     O.Success opts -> pure opts

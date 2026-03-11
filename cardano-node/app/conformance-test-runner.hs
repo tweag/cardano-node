@@ -1,37 +1,45 @@
-{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Main (main) where
 
 import           Cardano.Api (ConsensusModeParams (..), EpochSlots (..), File (..), NetworkId (..))
 
-import           Cardano.Node.Configuration.POM (makeNodeConfiguration, ncProtocolConfig,
-                   parseNodeConfigurationFP)
+import           Cardano.Node.Configuration.POM (defaultPartialNodeConfiguration,
+                   makeNodeConfiguration, ncProtocolConfig, parseNodeConfigurationFP)
 import           Cardano.Node.Protocol.Cardano (mkCardanoProtocolParams)
 import           Cardano.Node.Run ()
-import           Cardano.Node.Types (NodeProtocolConfiguration (..))
+import           Cardano.Node.Types (ConfigYamlFilePath (..), NodeProtocolConfiguration (..))
 import           Cardano.Protocol.Crypto (StandardCrypto)
-import           Ouroboros.Consensus.Block.Abstract
+import           Ouroboros.Consensus.Block (GetHeader (getHeader), Header)
 import           Ouroboros.Consensus.Cardano (CardanoBlock)
+import           Ouroboros.Consensus.Cardano.IssueTestBlock ()
 import           Ouroboros.Consensus.Cardano.Node (CardanoProtocolParams, protocolInfoCardano)
-import           Ouroboros.Consensus.Config (topLevelConfigStorage)
+import           Ouroboros.Consensus.Config (topLevelConfigBlock, topLevelConfigCodec,
+                   topLevelConfigStorage)
+import           Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode, getNetworkMagic)
+import           Ouroboros.Consensus.Ledger.SupportsProtocol (LedgerSupportsProtocol)
 import           Ouroboros.Consensus.MiniProtocol.ChainSync.Client.State
+                   (ChainSyncClientHandleCollection (cschcMap))
+import           Ouroboros.Consensus.Node (ProtocolInfo (pInfoConfig))
 import           Ouroboros.Consensus.Node.InitStorage (NodeInitStorage, nodeImmutableDbChunkInfo)
-import           Ouroboros.Consensus.Storage.ChainDB.API hiding (getTipPoint)
-import           Ouroboros.Consensus.Util.IOLike
-import           Ouroboros.Network.AnchoredFragment (AnchoredFragment, toOldestFirst)
+import           Ouroboros.Consensus.Node.NetworkProtocolVersion (SupportedNetworkProtocolVersion)
+import           Ouroboros.Consensus.Node.Run (SerialiseNodeToNodeConstraints)
+import           Ouroboros.Consensus.Storage.ChainDB.API (ChainDB (ChainDB, getCurrentChain))
+import           Ouroboros.Consensus.Util.IOLike (MonadAsync (async, uninterruptibleCancel),
+                   MonadCatch (try), MonadDelay (threadDelay), MonadSTM (atomically, retry),
+                   SomeException, Time (Time), newTVarIO, readTVar)
+import           Ouroboros.Network.AnchoredFragment (AnchoredFragment)
 import qualified Ouroboros.Network.AnchoredFragment as AF
-import           Ouroboros.Network.Block
+import           Ouroboros.Network.Block (Tip (Tip, TipGenesis), castTip, getTipPoint)
 import           Ouroboros.Network.NodeToNode (PeerAdvertise (..))
 import           Ouroboros.Network.NodeToNode.Version (DiffusionMode (..))
 import           Ouroboros.Network.PeerSelection.LedgerPeers (RelayAccessPoint (..),
@@ -39,6 +47,7 @@ import           Ouroboros.Network.PeerSelection.LedgerPeers (RelayAccessPoint (
 import           Ouroboros.Network.PeerSelection.RelayAccessPoint (PortNumber)
 import           Ouroboros.Network.PeerSelection.State.LocalRootPeers (HotValency (..),
                    WarmValency (..))
+import           Ouroboros.Network.Util.ShowProxy (ShowProxy)
 
 import           Control.Error.Util (hoistEither)
 import           Control.Monad (unless, when)
@@ -52,17 +61,19 @@ import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Map (Map)
 import qualified Data.Map as M
 import qualified Data.Map.Merge.Lazy as M
-import           Data.Maybe (fromJust, isNothing)
+import           Data.Maybe (isNothing)
 import           Data.Set (Set)
 import qualified Data.Set as S
 import           Data.Traversable
 import qualified Network.Socket as Socket
-import           Options (Options (..), parseOptions)
+import           Options
 import           System.Environment (getArgs)
 
-import           Test.Consensus.BlockTree (BlockTree (..), BlockTreeBranch (..), prettyBlockTree)
+import           Test.Consensus.BlockTree (BlockTree (..), BlockTreeBranch (..), onTrunk,
+                   prettyBlockTree)
 import           Test.Consensus.Genesis.Setup.GenChains
 import           Test.Consensus.OrphanInstances ()
+import           Test.Consensus.PeerSimulator.Config ()
 import           Test.Consensus.PeerSimulator.NodeLifecycle
 import           Test.Consensus.PeerSimulator.Resources (PeerSimulatorResources (..),
                    makePeerSimulatorResources)
@@ -74,7 +85,7 @@ import           Test.Consensus.PointSchedule.Peers (PeerId (..), getPeerIds, pe
 import           Test.Consensus.PointSchedule.SinglePeer (SchedulePoint (..), scheduleBlockPoint,
                    scheduleHeaderPoint, scheduleTipPoint)
 import           Test.QuickCheck (generate, scale)
-import           Test.Util.TestBlock (TestBlock, unTestHash)
+import           Test.Util.TestBlock (TestBlock)
 
 import           ExitCodes
 import           Query
@@ -86,8 +97,9 @@ instance ( NodeInitStorage (CardanoBlock StandardCrypto)) => HasPointScheduleTes
   data ProtocolInfoArgs (CardanoBlock StandardCrypto) = CardanoInfoArgs (CardanoProtocolParams StandardCrypto)
   mkProtocolInfo _ _ _ (CardanoInfoArgs args) = fst $ protocolInfoCardano @_ @IO args
   getProtocolInfoArgs = fmap (CardanoInfoArgs . either (error . mappend "getProtocolInfoArgs: ") id) $ runExceptT $ do
-    pnc <- lift $ parseNodeConfigurationFP Nothing
-    nc <- hoistEither $ makeNodeConfiguration pnc
+    -- Here we can point to a custom configuration file if we want to, but for now we just use the default one.
+    pnc <- lift $ parseNodeConfigurationFP (Just $ ConfigYamlFilePath "configuration/cardano/mainnet-config.yaml")
+    nc <- hoistEither $ makeNodeConfiguration $ defaultPartialNodeConfiguration <> pnc
     let NodeProtocolConfigurationCardano byronConfig shelleyConfig alonzoConfig conwayConfig hardforkConfig checkpointsConfig = ncProtocolConfig nc
     withExceptT show $ mkCardanoProtocolParams
       byronConfig shelleyConfig alonzoConfig conwayConfig hardforkConfig checkpointsConfig Nothing
@@ -153,17 +165,11 @@ indexUpdate res tree ix = case res of
   -- When the test fails, try to stretch.
   TestFailure -> tryContinueIndex (Ix.stretch tree) id ix
 
-buildPeerMap :: PortNumber -> PointSchedule blk -> Map PeerId PortNumber
-buildPeerMap firstPort = M.fromList . flip zip [firstPort ..] . getPeerIds . psSchedule
+buildPeerMap :: SimPeerPort -> PointSchedule blk -> Map PeerId PortNumber
+buildPeerMap firstPort = M.fromList . flip zip [getSimPeerPort firstPort ..] . getPeerIds . psSchedule
 
 toRelayAP :: PortNumber -> RelayAccessPoint
 toRelayAP = RelayAccessAddress $ read "127.0.0.1"
-
-instance Foldable BlockTreeBranch where
-  foldMap f (BlockTreeBranch _ _ _ full) = foldMap f $ toOldestFirst full
-
-instance Foldable BlockTree where
-  foldMap f (BlockTree a b) = foldMap f (toOldestFirst a) <> foldMap (foldMap f) b
 
 makeTopology :: Foldable t => t PortNumber -> Value
 makeTopology ports = object
@@ -208,12 +214,12 @@ main = do
   args <- getArgs
   opts <- parseOptions args
 
-  -- The test should be parsed from `optTestFile`, but its chain and acceptance
+  -- TODO: The test should be parsed from `optTestFile`, but its chain and acceptance
   -- criteria are hard coded for convenience until the @testgen@ utility is implemented.
   -- Generate a random RollBack test chain. We divide the test size by 10 here
   -- because 'TestBlock's have a hardcoded size of 100---anything longer will
   -- crash when being deserialized.
-  chain0 <- generate $ scale (flip div 10) $ do
+  chain0 <- generate $ scale (`div` 10) $ do
     gt <- genChains $ pure 1
     pure $ gt {gtSchedule = rollbackSchedule 1 $ gtBlockTree gt}
 
@@ -229,9 +235,9 @@ main = do
 
   res <-
     try @_ @SomeException $
-      runServer
-        (optPort opts)
-        (optSocketPath opts)
+      runServer @TestBlock
+        (optNutPort opts)
+        (optSimPeerPort opts)
         (optOutputTopologyFile opts)
         chain
   case res of
@@ -250,8 +256,10 @@ main = do
                 testRes == TestSuccess &&
                  (isNothing inputIndex || inputIndex == Just mempty)
           case (optMinimalTestOutput opts, not isGlobalSuccess, Ix.lookup ix tree) of
-            (Just minimalTestFilePath, True, Just chain') -> encodeFile minimalTestFilePath chain'
-            (Nothing, True, Just chain') -> print $ encode chain'
+            -- TODO: Encoding is commented out for now because
+            -- the test file format is not available yet.
+            (Just minimalTestFilePath, True, Just chain') -> pure () -- encodeFile minimalTestFilePath chain'
+            (Nothing, True, Just chain') -> pure () -- print $ encode chain'
             _ -> pure ()
           pure mempty
       exitWithStatus . Flags $ testResultToFlag testRes <> mightContinueShrinking
@@ -259,26 +267,40 @@ main = do
 zipMaps :: Ord k => Map k a -> Map k b -> Map k (a, b)
 zipMaps = M.merge M.dropMissing M.dropMissing $ M.zipWithMatched $ const (,)
 
-runServer :: PortNumber
-          -> FilePath
-          -> FilePath
-          -> GenesisTest TestBlock (PointSchedule TestBlock)
-          -> IO TestResult
-runServer firstPort socketPath outputTopologyPath chain = do
-  let ps = gtSchedule chain
-      peerMap = buildPeerMap firstPort ps
+runServer ::
+  forall blk.
+  ( ConfigSupportsNode blk
+  , Eq blk
+  , HasPointScheduleTestParams blk
+  , LedgerSupportsProtocol blk
+  , SerialiseNodeToNodeConstraints blk
+  , ShowProxy blk
+  , ShowProxy (Header blk)
+  , SupportedNetworkProtocolVersion blk
+  )
+  => NutPort  -- ^ Node-to-node TCP port of the node under test
+  -> SimPeerPort  -- ^ Starting port for simulated peers
+  -> FilePath  -- ^ File path to output the generated topology file
+  -> GenesisTest blk (PointSchedule blk)
+  -> IO TestResult
+runServer nutPort firstPort outputTopologyPath (GenesisTest {gtSchedule, gtSecurityParam, gtForecastRange, gtGenesisWindow, gtBlockTree}) = do
+  let peerMap = buildPeerMap firstPort gtSchedule
 
   -- Print out the generated block tree so that the person running the test
   -- knows what's going on. We probably don't want to do this in real code.
-  Prelude.putStrLn $ unlines $ prettyBlockTree $ gtBlockTree chain
+  Prelude.putStrLn $ unlines $ prettyBlockTree gtBlockTree
 
   -- Write out the generated topology file.
   encodeFile outputTopologyPath $ makeTopology peerMap
 
+  args <- getProtocolInfoArgs
+  let config = pInfoConfig $ mkProtocolInfo gtSecurityParam gtForecastRange gtGenesisWindow args
+
+
   -- Make a new peer simulator, and then for each peer in it, spin up a new
   -- ChainSync and BlockFetch server.
   peerSim <-
-    makePeerSimulatorResources nullTracer (gtBlockTree chain) $
+    makePeerSimulatorResources nullTracer gtBlockTree $
       NonEmpty.fromList $ M.keys peerMap
   peerServers <-
     for (zipMaps peerMap $ psrPeers peerSim) $ \(port, res) -> do
@@ -292,7 +314,9 @@ runServer firstPort socketPath outputTopologyPath chain = do
       let sockAddr =
             Socket.SockAddrInet port $
               Socket.tupleToHostAddress (127, 0, 0, 1)
-      thread <- async $ run res csChannelTMV bfChannelTMV sockAddr
+
+      thread <- async $ run (topLevelConfigCodec config) (topLevelConfigBlock config) res csChannelTMV bfChannelTMV sockAddr
+
       pure ((csChannelTMV, bfChannelTMV), thread)
 
   -- Now, take each of the resulting TMVars. This blocks until the NUT has
@@ -329,7 +353,7 @@ runServer firstPort socketPath outputTopologyPath chain = do
   (_, stateViewTracers) <- runScheduler
     (Tracer $ traceWith nullTracer . TraceSchedulerEvent)
     (cschcMap (psrHandles peerSim))
-    ps
+    gtSchedule
     (psrPeers peerSim)
     lifecycle
 
@@ -337,40 +361,31 @@ runServer firstPort socketPath outputTopologyPath chain = do
   -- simulated peers.
   threadDelay 2
 
-  -- Ask the NUT what chain tip it ended up at.
-  tip@(Tip _ hash _) <-
-    getLocalChainTip $
-      LocalNodeConnectInfo (CardanoModeParams $ EpochSlots 0) Mainnet $
-        File socketPath
+  -- Ask the NUT what chain tip it ended up at via node-to-node ChainSync.
+  tipVar <- getRemoteChainTip
+    (topLevelConfigCodec config)
+    (getNetworkMagic (topLevelConfigBlock config))
+    (Socket.SockAddrInet (getNutPort nutPort) $ Socket.tupleToHostAddress (127, 0, 0, 1))
+
+  -- This blocks until we get a response from the NUT.
+  tip <- atomically $ readTVar tipVar >>= maybe retry pure
+  let tipHash = case tip of
+        TipGenesis -> error "Genesis point is not a valid tip for the NUT"
+        Tip _ h _  -> h
 
   -- Reconstruct the "selected chain" that the NUT ended up on. We can do this
   -- as an oracle, because we know what the block tree was. Thus, we can just
   -- check the NUT's tip against every possible branch in the tree.
-  --
-  -- The use of 'fromJust' here ought to be safe, assuming the NUT started from
-  -- genesis and saw all of the blocks from the simulated peers.
-  let selchain =
-        fromJust $ asum $ do
-          let bt = gtBlockTree chain
-          pchain <- btTrunk bt : fmap btbFull (btBranches bt)
-          pure $ do
-            (c, _) <- AF.splitBeforePoint pchain $ getTipPoint tip
-            pure c
-
-  -- Construct a map from hashes to blocks. Again, we should be able to ask the
-  -- NUT for which block they ended up on, but Sandy's 'TestBlock' IPC
-  -- implementation fails to decode the relevant message coming from the NUT.
-  -- Unclear if this is a bug in Sandy's code, or something further upstream.
-  let blocks = foldMap (\blk -> M.singleton (blockHash blk) blk) $
-                 gtBlockTree chain
+  let blocks = deforestBlockTree gtBlockTree
+      selectedChain = blocks M.! tipHash
 
   -- Finally, build a 'StateView' we can use to evaluate the test's acceptance
   -- criteria.
-  ts <- svtGetPeerSimulatorResults stateViewTracers
-  let sv = StateView
-        { svSelectedChain = AF.mapAnchoredFragment getHeader selchain
-        , svPeerSimulatorResults = ts
-        , svTipBlock = Just $ blocks M.! hash
+  results <- svtGetPeerSimulatorResults stateViewTracers
+  let _sv = StateView
+        { svSelectedChain = AF.mapAnchoredFragment getHeader selectedChain
+        , svPeerSimulatorResults = results
+        , svTipBlock = Just $ either (error "selected chain is empty") id $ AF.head selectedChain
         , svTrace =
             -- 'svTrace' is a trace of what the NUT actually did. Such a thing
             -- makes sense when we observing the internal state of
@@ -384,18 +399,14 @@ runServer firstPort socketPath outputTopologyPath chain = do
   for_ peerServers $ uninterruptibleCancel . snd
 
   -- Return the test's acceptance criteria.
-  -- This should be parsed out of the test file parameter, but is currently
-  -- hard coded for convenience.
-  pure . boolToTestResult $ not . hashOnTrunk . AF.headHash $ svSelectedChain sv
 
+  -- This should be parsed out of the test file parameter and computed from
+  -- the 'StateView', but is currently hard coded for convenience.
+  pure . boolToTestResult $ not . onTrunk gtBlockTree $ getTipPoint $ castTip tip
 
 --------------------------------------------------------------------------------
 -- The remainder of this file is copied from the ouroboros-consensus
 -- PeerSimulator RollBack test, because it's not yet convenient to import it.
-
-hashOnTrunk :: ChainHash (Header TestBlock) -> Bool
-hashOnTrunk GenesisHash      = True
-hashOnTrunk (BlockHash hash) = all (== 0) $ unTestHash hash
 
 -- | A schedule that advertises all the points of the trunk up until the nth
 -- block after the intersection, then switches to the first alternative
@@ -424,6 +435,6 @@ rollbackSchedule n blockTree =
        }
   where
     banalSchedulePoints :: AnchoredFragment blk -> [SchedulePoint blk]
-    banalSchedulePoints = concatMap banalSchedulePoints' . toOldestFirst
+    banalSchedulePoints = concatMap banalSchedulePoints' . AF.toOldestFirst
     banalSchedulePoints' :: blk -> [SchedulePoint blk]
     banalSchedulePoints' block = [scheduleTipPoint block, scheduleHeaderPoint block, scheduleBlockPoint block]
