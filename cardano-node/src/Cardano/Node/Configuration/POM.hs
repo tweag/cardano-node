@@ -857,7 +857,7 @@ makeNodeConfiguration pnc = do
 
   ncResponderCoreAffinityPolicy <- lastToEither "Missing ResponderCoreAffinityPolicy" $ pncResponderCoreAffinityPolicy pnc
 
-  ncCrucialLsqClients <- lastToEither "Missing CrucialLsqClients" $ pncCrucialLsqClients pnc
+  let ncCrucialLsqClients = fromMaybe mempty $ getLast $ pncCrucialLsqClients pnc
 
   let deadlineTargets =
         PeerSelectionTargets {
