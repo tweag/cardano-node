@@ -302,6 +302,7 @@ library conformance-testlib
   import:               project-config
   hs-source-dirs:       src-conformance-test
   exposed-modules:      ExitCodes
+                        KeyName
                         MiniProtocols
                         Options
                         Query
@@ -385,7 +386,9 @@ executable conformance-test-gen
   hs-source-dirs:       app
   main-is:              conformance-test-gen.hs
   build-depends:        base
+                      , cardano-node:conformance-testlib
                       , optparse-applicative
+                      , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
 
 test-suite conformance-testlib-test
   import:               project-config
