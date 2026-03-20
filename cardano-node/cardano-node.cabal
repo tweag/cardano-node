@@ -386,6 +386,7 @@ executable conformance-test-gen
   main-is:              conformance-test-gen.hs
   build-depends:        base
                       , optparse-applicative
+                      , ouroboros-consensus:unstable-consensus-testlib
                       , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
 
 test-suite conformance-testlib-test

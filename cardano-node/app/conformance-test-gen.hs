@@ -7,10 +7,12 @@ import           System.Environment (getArgs)
 import           System.Exit (exitFailure, exitSuccess)
 import           System.IO (hPutStrLn, stderr)
 
-import           Test.Consensus.Genesis.Tests (GenesisTestKey)
+import qualified Test.Consensus.Genesis.Tests as Genesis
 import           Test.Consensus.Genesis.TestSuite
 import           Test.Consensus.Genesis.TestSuite.SmallKey
-import           Test.Consensus.PeerSimulator.Tests (SmokeTestKey)
+import qualified Test.Consensus.PeerSimulator.Tests as PeerSimulator
+import           Test.Util.TestBlock (TestBlock)
+
 data Command = ListClasses
 
 options :: ParserInfo Command
@@ -52,13 +54,7 @@ main :: IO ()
 main = do
   cmd <- getArgs >>= parseOptions
   case cmd of
-    ListClasses -> mapM_ (putStrLn . keyName) $ suiteKeys genesisTestSuite <> suiteKeys smokeTestSuite
-
--- | All available test key names, derived from the key type definitions.
--- No hardcoded strings: the datatype names and constructor names come
--- entirely from the 'GHC.Generics.Generic' representations of the key
--- types.
-availableTestKeys :: [String]
-availableTestKeys =
-  fmap keyName (getAllKeys @GenesisTestKey)
-    <> fmap keyName (getAllKeys @SmokeTestKey)
+    ListClasses -> mapM_ putStrLn $ mconcat
+      [ fmap keyName . suiteKeys $ Genesis.testSuite @TestBlock
+      , fmap keyName . suiteKeys $ PeerSimulator.testSuite @TestBlock
+      ]
