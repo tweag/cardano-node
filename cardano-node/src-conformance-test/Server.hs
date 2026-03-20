@@ -3,13 +3,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeOperators #-}
 
 module Server (run) where
 
+import           Ouroboros.Consensus.Block
 import           Ouroboros.Consensus.Config.SupportsNode (ConfigSupportsNode, getNetworkMagic)
 import           Ouroboros.Consensus.Node.NetworkProtocolVersion
-import           Ouroboros.Consensus.Node.ProtocolInfo (NumCoreNodes (..))
 import           Ouroboros.Consensus.Node.Run (SerialiseNodeToNodeConstraints)
 import           Ouroboros.Consensus.Util.IOLike
 import           Ouroboros.Network.ErrorPolicy (nullErrorPolicies)
@@ -20,6 +19,7 @@ import           Ouroboros.Network.PeerSelection.PeerSharing.Codec (decodeRemote
                    encodeRemoteAddress)
 import qualified Ouroboros.Network.Snocket as Snocket
 import           Ouroboros.Network.Socket (configureSocket)
+import           Ouroboros.Network.Util.ShowProxy (ShowProxy)
 
 import           Control.ResourceRegistry
 import           Control.Tracer
@@ -30,8 +30,6 @@ import qualified Network.Mux as Mux
 import           Network.Socket (SockAddr (..))
 
 import           Test.Consensus.PeerSimulator.Resources (PeerResources)
-import qualified Test.Util.TestBlock as TB
-import           Test.Util.TestBlock (TestBlock)
 
 import           MiniProtocols (peerSimServer)
 
@@ -74,11 +72,14 @@ serve sockAddr application = withIOManager \iocp -> do
 
 run ::
   forall blk.
-  ( SupportedNetworkProtocolVersion blk
+  ( ConfigSupportsNode blk
   , SerialiseNodeToNodeConstraints blk
-  , ConfigSupportsNode blk
-  , blk ~ TestBlock
+  , ShowProxy blk
+  , ShowProxy (Header blk)
+  , SupportedNetworkProtocolVersion blk
   ) =>
+  CodecConfig blk ->
+  BlockConfig blk ->
   PeerResources IO blk ->
   -- | A TMVar for the chainsync channel that we will fill in once the node connects.
   StrictTVar IO Bool ->
@@ -86,13 +87,13 @@ run ::
   StrictTVar IO Bool ->
   SockAddr ->
   IO Void
-run res csChanTMV bfChanTMV sockAddr = withRegistry \_registry ->
+run codecCfg blkCfg res csChanTMV bfChanTMV sockAddr = withRegistry \_registry ->
   serve sockAddr
-    $ peerSimServer @_ @TestBlock
+    $ peerSimServer @_ @blk
       res
       csChanTMV
       bfChanTMV
-      TB.TestBlockCodecConfig
+      codecCfg
       encodeRemoteAddress
       decodeRemoteAddress
-    $ getNetworkMagic @TestBlock $ TB.TestBlockConfig $ NumCoreNodes 0
+    $ getNetworkMagic @blk blkCfg
