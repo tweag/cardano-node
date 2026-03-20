@@ -49,7 +49,7 @@ import           Ouroboros.Network.Diffusion.Configuration as Configuration
 import qualified Ouroboros.Network.Diffusion.Configuration as Ouroboros
 import qualified Ouroboros.Network.Mux as Mux
 import qualified Ouroboros.Network.PeerSelection.Governor as PeerSelection
-import           Ouroboros.Network.Protocol.LocalStateQuery.Type(LeashID(..))
+import           Ouroboros.Network.Protocol.LocalStateQuery.Type(LeashId(..))
 
 import           Control.Concurrent (getNumCapabilities)
 import           Control.Monad (unless, void, when)
@@ -200,7 +200,7 @@ data NodeConfiguration
 
        , ncResponderCoreAffinityPolicy :: ResponderCoreAffinityPolicy
 
-       , ncCrucialLsqClients :: Set LeashID
+       , ncCrucialLsqClients :: Set LeashId
        } deriving (Eq, Show)
 
 -- | We expose the `Ouroboros.Network.Mux.ForkPolicy` as a `NodeConfiguration` field.
@@ -301,7 +301,7 @@ data PartialNodeConfiguration
        , pncGenesisConfigFlags :: !(Last GenesisConfigFlags)
 
        , pncResponderCoreAffinityPolicy :: !(Last ResponderCoreAffinityPolicy)
-       , pncCrucialLsqClients :: !(Last (Set LeashID))
+       , pncCrucialLsqClients :: !(Last (Set LeashId))
        } deriving (Eq, Generic, Show)
 
 instance AdjustFilePaths PartialNodeConfiguration where
@@ -420,7 +420,7 @@ instance FromJSON PartialNodeConfiguration where
 
       pncCrucialLsqClients <- fmap Last $ do
         clients :: Maybe (Set Integer) <- v .:? "CrucialLsqClients"
-        pure $ fmap (Set.map $ LeashID . fromIntegral) clients 
+        pure $ fmap (Set.map $ LeashId . fromIntegral) clients 
 
       pure PartialNodeConfiguration {
              pncProtocolConfig
