@@ -21,7 +21,7 @@ import           Cardano.Node.Types (ConfigYamlFilePath (..), NodeProtocolConfig
 import           Cardano.Protocol.Crypto (StandardCrypto)
 import           Ouroboros.Consensus.Block (GetHeader (getHeader), Header)
 import           Ouroboros.Consensus.Cardano (CardanoBlock)
-import           Ouroboros.Consensus.Cardano.IssueTestBlock ()
+import           IssueTestBlock ()
 import           Ouroboros.Consensus.Cardano.Node (CardanoProtocolParams, protocolInfoCardano)
 import           Ouroboros.Consensus.Config (topLevelConfigBlock, topLevelConfigCodec,
                    topLevelConfigStorage)
@@ -85,7 +85,6 @@ import           Test.Consensus.PointSchedule.Peers (PeerId (..), getPeerIds, pe
 import           Test.Consensus.PointSchedule.SinglePeer (SchedulePoint (..), scheduleBlockPoint,
                    scheduleHeaderPoint, scheduleTipPoint)
 import           Test.QuickCheck (generate, scale)
-import           Test.Util.TestBlock (TestBlock)
 
 import           ExitCodes
 import           Query
@@ -235,7 +234,7 @@ main = do
 
   res <-
     try @_ @SomeException $
-      runServer @TestBlock
+      runServer @(CardanoBlock StandardCrypto)
         (optNutPort opts)
         (optSimPeerPort opts)
         (optOutputTopologyFile opts)
