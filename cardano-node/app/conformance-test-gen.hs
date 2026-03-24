@@ -2,14 +2,17 @@
 
 module Main (main) where
 
-import           Options.Applicative
+import           Data.Foldable (traverse_)
+import           Options.Applicative (CompletionResult (execCompletion), Parser, ParserInfo,
+                   ParserResult (CompletionInvoked, Failure, Success), command, defaultPrefs,
+                   execParserPure, fullDesc, header, helper, info, progDesc, renderFailure,
+                   subparser, (<**>))
 import           System.Environment (getArgs)
 import           System.Exit (exitFailure, exitSuccess)
 import           System.IO (hPutStrLn, stderr)
 
 import qualified Test.Consensus.Genesis.Tests as Genesis
-import           Test.Consensus.Genesis.TestSuite
-import           Test.Consensus.Genesis.TestSuite.SmallKey
+import           Test.Consensus.Genesis.TestSuite (keyName, suiteKeys)
 import qualified Test.Consensus.PeerSimulator.Tests as PeerSimulator
 import           Test.Util.TestBlock (TestBlock)
 
@@ -54,7 +57,7 @@ main :: IO ()
 main = do
   cmd <- getArgs >>= parseOptions
   case cmd of
-    ListClasses -> mapM_ putStrLn $ mconcat
+    ListClasses -> traverse_ putStrLn $ mconcat
       [ fmap keyName . suiteKeys $ Genesis.testSuite @TestBlock
       , fmap keyName . suiteKeys $ PeerSimulator.testSuite @TestBlock
       ]
