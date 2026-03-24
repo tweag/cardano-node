@@ -15,13 +15,12 @@ module Query
   ) where
 
 import           Cardano.Node.Run ()
-import           Ouroboros.Consensus.Block (CodecConfig, Header, Point, Proxy (Proxy), StandardHash)
+import           Ouroboros.Consensus.Block (CodecConfig, Header, Point, Proxy (Proxy))
 import           Ouroboros.Consensus.Network.NodeToNode (Codecs (..))
 import qualified Ouroboros.Consensus.Network.NodeToNode as Consensus.N2N
 import           Ouroboros.Consensus.Node.NetworkProtocolVersion (SupportedNetworkProtocolVersion)
 import           Ouroboros.Consensus.Node.Run (SerialiseNodeToNodeConstraints)
-import           Ouroboros.Consensus.Util.IOLike (MonadSTM (atomically), MonadThrow (throwIO),
-                   StrictTVar, newTVarIO, writeTVar)
+import           Ouroboros.Consensus.Util.IOLike (MonadThrow (throwIO))
 import           Ouroboros.Network.Block (Tip)
 import           Ouroboros.Network.Driver (runPeer)
 import           Ouroboros.Network.IOManager (withIOManager)
@@ -46,9 +45,7 @@ import           Test.Consensus.PeerSimulator.Config ()
 import           MiniProtocols (forallVersionsN2N)
 
 -- | Query the current chain tip of a remote node via the node-to-node (N2N)
--- ChainSync mini-protocol. It is returned inside a 'StrictTVar' because the
--- mini-protocol runs asynchronously in a separate thread; it is for downstream
--- to decide when to read it.
+-- ChainSync mini-protocol. Blocks until the tip is received.
 --
 -- This function replaces an earlier approach based on 'getLocalChainTip' from
 -- @cardano-api@, which connected via a Unix domain socket using the
@@ -62,15 +59,13 @@ getRemoteChainTip
   ( SerialiseNodeToNodeConstraints blk
   , ShowProxy blk
   , ShowProxy (Header blk)
-  , StandardHash blk
   , SupportedNetworkProtocolVersion blk
   )
   => CodecConfig blk
   -> NetworkMagic
   -> Socket.SockAddr
-  -> IO (StrictTVar IO (Maybe (Tip blk)))
-getRemoteChainTip codecCfg networkMagic nutAddress = do
-  tipVar <- newTVarIO Nothing
+  -> IO (Tip blk)
+getRemoteChainTip codecCfg networkMagic nutAddress =
   withIOManager $ \iocp -> do
     let sn = Snocket.socketSnocket iocp
     r <- N2N.connectTo sn N2N.nullNetworkConnectTracers
@@ -78,36 +73,21 @@ getRemoteChainTip codecCfg networkMagic nutAddress = do
              let Consensus.N2N.Codecs { cChainSyncCodec } =
                    Consensus.N2N.defaultCodecs codecCfg blockVersion encodeRemoteAddress decodeRemoteAddress version
              in OuroborosApplication
-                  [ -- Runs the one-shot ChainSync client that captures the tip
-                    -- from the server's response. Started on demand by the
-                    -- initiator (us), since we send the first message.
-                    MiniProtocol
+                  [ MiniProtocol
                       { miniProtocolNum    = N2N.chainSyncMiniProtocolNum
-                      , miniProtocolStart  = Mux.StartOnDemand
+                      , miniProtocolStart  = Mux.StartEagerly
                       , miniProtocolLimits = N2N.chainSyncProtocolLimits N2N.defaultMiniProtocolParameters
-                      , miniProtocolRun    = InitiatorProtocolOnly $ MiniProtocolCb $ \_ channel -> do
-                          (tip, trailing) <- runPeer nullTracer cChainSyncCodec channel
-                                               $ chainSyncClientPeer chainSyncGetTip
-                          atomically $ writeTVar tipVar $ Just tip
-                          pure ((), trailing)
-                      }
-                  , -- Required because the NUT may initiate KeepAlive pings
-                    -- to verify the connection is alive; without an active
-                    -- responder it would drop the connection before ChainSync
-                    -- completes. This no-op implementation is sufficient.
-                    MiniProtocol
-                      { miniProtocolNum    = N2N.keepAliveMiniProtocolNum
-                      , miniProtocolStart  = Mux.StartOnDemandAny
-                      , miniProtocolLimits = N2N.keepAliveProtocolLimits N2N.defaultMiniProtocolParameters
-                      , miniProtocolRun    = InitiatorProtocolOnly $ MiniProtocolCb $ \_ _ -> pure ((), Nothing)
+                      , miniProtocolRun    = InitiatorProtocolOnly $ MiniProtocolCb $ \_ channel ->
+                          runPeer nullTracer cChainSyncCodec channel
+                            $ chainSyncClientPeer chainSyncGetTip
                       }
                   ])
            Nothing
            nutAddress
     case r of
-      Left e  -> throwIO e
-      Right _ -> pure ()
-  pure tipVar
+      Left e          -> throwIO e
+      Right (Left tip) -> pure tip
+      Right (Right _) -> error "getRemoteChainTip: unexpected responder result"
 
 -- | A one-shot ChainSync client that returns the server's current chain tip.
 --
