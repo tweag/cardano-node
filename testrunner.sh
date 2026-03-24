@@ -29,12 +29,10 @@ done
 
 # Now that the test harness is up, we can start the NUT, which will connect to
 # test-runner via the generated topology file.
-# REVIEW: We could need to pass in a custom config here, e.g.
-# --config=configuration/tester/mainnet-config.json \
 cabal run cardano-node:cardano-node -- run \
     --topology=/tmp/topology.file \
     --port="$NUT_NTN_PORT" \
-    --config=configuration/tester/mainnet-config.json & # 1>/dev/null &
+    --config=configuration/ctc/mainnet-config.json & # 1>/dev/null &
 NUT_PID=$!
 
 # Wait for test-runner to exit, and capture its exit code.

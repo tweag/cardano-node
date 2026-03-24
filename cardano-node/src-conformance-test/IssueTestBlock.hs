@@ -50,7 +50,7 @@ instance IssueTestBlock (CardanoBlock StandardCrypto) where
   type TestBlockContext (CardanoBlock StandardCrypto) = CardanoBlockCtx
   getTestBlockContext _ = do
     -- TODO(isovector): Use real command line configuration for these paths.
-    let prefix = "./configuration/tester"
+    let prefix = "./configuration/ctc"
         hardcodedPaths = ProtocolFilepaths
           { byronCertFile        = Nothing
           , byronKeyFile         = Nothing
