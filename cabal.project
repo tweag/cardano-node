@@ -16,6 +16,7 @@ index-state:
   , hackage.haskell.org 2025-06-03T08:07:10Z
   , cardano-haskell-packages 2025-07-17T12:00:21Z
 
+
 packages:
   cardano-node
   cardano-node-capi
@@ -34,8 +35,8 @@ packages:
 
 source-repository-package
     type: git
-    tag: 899a793ffaaaae52f668647cb06aec47851e996b
-    --sha256: sha256-/SxbG/QssZfDVrwSyKxnRe5cgl0m5S1WPDvYAd/enno=
+    tag: c4a561c179e91f9f390ea933215b77eb3a6027b8
+    --sha256: sha256-qGufSSEjut5fDXbTeLn192yt2HAp+UXLcgr2F+sMQWE=
     location: https://github.com/tweag/ouroboros-consensus-testing.git
     subdir: ouroboros-consensus ouroboros-consensus-diffusion ouroboros-consensus-cardano
 

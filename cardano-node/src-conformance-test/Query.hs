@@ -113,4 +113,3 @@ chainSyncGetTip = ChainSyncClient . pure $
     { recvMsgIntersectFound    = \_ tip -> ChainSyncClient . pure $ SendMsgDone tip
     , recvMsgIntersectNotFound = ChainSyncClient . pure . SendMsgDone
     }
-
