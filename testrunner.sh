@@ -31,6 +31,7 @@ done
 # test-runner via the generated topology file.
 cabal run cardano-node:cardano-node -- run \
     --topology=/tmp/topology.file \
+    --database-path=$(mktemp -d) \
     --port="$NUT_NTN_PORT" \
     --config=configuration/ctc/mainnet-config.json & # 1>/dev/null &
 NUT_PID=$!
@@ -46,6 +47,7 @@ if [ -n "${NUT_PID-}" ]; then
 fi
 
 # Exit with the same code that test-runner gave.
+echo "NUT exited with code: $NUT_RESULT"
 exit "$NUT_RESULT"
 
 
