@@ -362,13 +362,11 @@ runServer nutPort firstPort outputTopologyPath (GenesisTest {gtSchedule, gtSecur
   threadDelay 2
 
   -- Ask the NUT what chain tip it ended up at via node-to-node ChainSync.
-  tipVar <- getRemoteChainTip
+  -- Blocks until the tip is received.
+  tip <- getRemoteChainTip
     (topLevelConfigCodec config)
     (getNetworkMagic (topLevelConfigBlock config))
     (Socket.SockAddrInet (getNutPort nutPort) $ Socket.tupleToHostAddress (127, 0, 0, 1))
-
-  -- This blocks until we get a response from the NUT.
-  tip <- atomically $ readTVar tipVar >>= maybe retry pure
   let tipHash = case tip of
         TipGenesis -> error "Genesis point is not a valid tip for the NUT"
         Tip _ h _  -> h
