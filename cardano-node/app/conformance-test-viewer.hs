@@ -25,7 +25,7 @@ import           Options.Applicative
 import           Ouroboros.Consensus.Byron.Ledger.Block
 import           ShrinkIndex
 import           System.Environment (getArgs)
-import           System.IO (hPutStr, hPutStrLn, stderr)
+import           System.IO (hPutStr, hPutStrLn, hSetEcho, hSetBuffering, stdin, stdout, stderr, BufferMode(..))
 import           Test.Consensus.OrphanInstances ()
 import           Test.Consensus.PointSchedule (GenesisTest, PointSchedule)
 import           Test.QuickCheck (Arbitrary(..))
@@ -47,6 +47,7 @@ data Options = Options
 
 data Mode
   = ShowDescendant
+  | Interactive
   deriving (Eq, Show)
 
 data TestCaseType
@@ -88,7 +89,12 @@ optionParser = Options
       , metavar "TYPE"
       , help "Which type of test case to parse"
       ]))
-  <*> pure ShowDescendant
+  <*> (option (eitherReader parseMode)
+    (long "mode" <> mconcat
+      [ value ShowDescendant
+      , metavar "STRING"
+      , help "Viewer mode (--show (default), --interactive)"
+      ]))
 
 
 
@@ -99,8 +105,10 @@ main = do
 
   result <- runExceptT $ do
     testCase <- getInputTestCase (optTestCaseType opts) (optInputPath opts)
-    shrinkResult <- analyzeShrinkTree (optMode opts) (optShrinkIndex opts) testCase
-    writeOutputTestCase (optOutputPath opts) shrinkResult
+    case optMode opts of
+       ShowDescendant -> do
+          shrinkResult <- analyzeShrinkTree (optMode opts) (optShrinkIndex opts) testCase
+          writeOutputTestCase (optOutputPath opts) shrinkResult
 
   case result of
     Right () -> pure ()
@@ -161,9 +169,15 @@ analyzeShrinkTree
   :: (Monad m)
   => Mode -> ShrinkIndex -> ViewableTestCase -> ExceptT String m ViewableTestCase
 analyzeShrinkTree mode shrinkIndex (TestCase testCase) = fmap TestCase $
-  case mode of
+  let shrinkTree = arbitraryShrinkTree testCase
+  in case mode of
     ShowDescendant -> failWith "Descendant does not exist. :(" $
-      lookup shrinkIndex $ arbitraryShrinkTree testCase
+      lookup shrinkIndex shrinkTree
+    Interactive -> do
+      hSetEcho stdout False
+      hSetBuffering stdin NoBuffering
+      displayTestCase shrinkIndex
+      interactWithShrinks shrinkIndex shrinkTree
 
 writeOutputTestCase
   :: (MonadIO m) => Maybe FilePath -> ViewableTestCase -> m ()
@@ -172,6 +186,50 @@ writeOutputTestCase outputPath (TestCase testCase) = do
   liftIO $ case outputPath of
     Nothing -> BS.putStr bytes >> putStrLn ""
     Just oPath -> BS.writeFile oPath bytes
+
+interactWithShrinks
+  :: ShrinkIndex -> ShrinkTree a -> ExceptT String m ()
+interactWithShrinks index allTrees = do
+  mNextIndex <- fmap (getNextIndex index) getNextCommand
+  case mNextIndex of
+    Nothing -> pure ()
+    Just nextIndex -> do
+      displayTestCase nextIndex allTrees
+
+-- Read an arrow key press or q from stdin.
+getNextCommand :: IO (Maybe Command)
+getNextCommand = do
+  c1 <- getChar
+  case c1 of
+    '\ESC' -> do
+      c2 <- getChar
+      c3 <- getChar
+      pure $ case (c2, c3) of
+        ('[', 'A') -> Just ToLeftSibling
+        ('[', 'B') -> Just ToRightSibling
+        ('[', 'C') -> Just ToFirstChild
+        ('[', 'D') -> Just ToParent
+        _          -> Nothing
+    'q' -> pure $ Just Quit
+    _   -> pure Nothing
+
+getNextIndex
+  :: ShrinkIndex -> Maybe Command -> Maybe ShrinkIndex
+getNextIndex index mCmd = case mCmd of
+  Just ToLeftSibling  -> _1
+  Just ToRightSibling -> _2
+  Just ToFirstChild   -> _3
+  Just ToParent       -> _4
+  Just Quit           -> Nothing
+  Nothing             -> Nothing
+
+data Command
+  = ToLeftSibling
+  | ToRightSibling
+  | ToFirstChild
+  | ToParent
+  | Quit
+  deriving (Eq, Show)
 
 
 
@@ -192,3 +250,9 @@ parseTestCaseType symbol = case symbol of
   "string"  -> Right StringTC
   "genesis" -> Right GenesisTestTC
   _ -> Left $ "Unrecognized test case type \"" <> symbol <> "\""
+
+parseMode :: String -> Either String Mode
+parseMode symbol = case symbol of
+  "show"        -> Right ShowDescendant
+  "interactive" -> Right Interactive
+  _             -> Left $ "Unrecognized viewing mode \"" <> symbol <> "\""
