@@ -19,7 +19,9 @@ import           Cardano.Node.Protocol.Cardano (mkCardanoProtocolParams)
 import           Cardano.Node.Run ()
 import           Cardano.Node.Types (ConfigYamlFilePath (..), NodeProtocolConfiguration (..))
 import           Cardano.Protocol.Crypto (StandardCrypto)
+import qualified Data.Aeson as Aeson
 import           Ouroboros.Consensus.Block (GetHeader (getHeader), Header)
+import           Ouroboros.Consensus.Block.Abstract
 import           Ouroboros.Consensus.Cardano (CardanoBlock)
 import           IssueTestBlock ()
 import           Ouroboros.Consensus.Cardano.Node (CardanoProtocolParams, protocolInfoCardano)
@@ -72,6 +74,7 @@ import           System.Environment (getArgs)
 import           Test.Consensus.BlockTree (BlockTree (..), BlockTreeBranch (..), onTrunk,
                    prettyBlockTree)
 import           Test.Consensus.Genesis.Setup.GenChains
+import           Test.Consensus.Genesis.Tests (GenesisTestKey)
 import           Test.Consensus.OrphanInstances ()
 import           Test.Consensus.PeerSimulator.Config ()
 import           Test.Consensus.PeerSimulator.NodeLifecycle
@@ -84,13 +87,22 @@ import           Test.Consensus.PointSchedule
 import           Test.Consensus.PointSchedule.Peers (PeerId (..), getPeerIds, peersOnlyHonest)
 import           Test.Consensus.PointSchedule.SinglePeer (SchedulePoint (..), scheduleBlockPoint,
                    scheduleHeaderPoint, scheduleTipPoint)
+import qualified Test.Consensus.Serialize as Serialize
 import           Test.QuickCheck (generate, scale)
+import           Test.QuickCheck.Gen (Gen, unGen)
+import           Test.QuickCheck.Random (QCGen, newQCGen)
+import           Test.Util.TestBlock (TestBlock, unTestHash)
 
 import           ExitCodes
 import           Query
 import           Server (run)
-import qualified ShrinkIndex as Ix
-import           ShrinkIndex (ShrinkIndex, ShrinkTree, makeShrinkTree)
+-- TODO(nbloomf): ShrinkIndex was moved upstream to ouroboros-consensus-diffusion because it
+-- is used in the serialization of test cases, but the local version is still in cardano-node.
+-- We're importing both here qualified because both are used; this is not a long-term
+-- solution but it is not yet clear where is the best place to put it.
+import qualified ShrinkIndex as OldIx
+import qualified Test.Consensus.Genesis.ShrinkIndex as Ix
+import           Test.Consensus.Genesis.ShrinkIndex (ShrinkIndex, ShrinkTree, makeShrinkTree)
 
 instance ( NodeInitStorage (CardanoBlock StandardCrypto)) => HasPointScheduleTestParams (CardanoBlock StandardCrypto) where
   data ProtocolInfoArgs (CardanoBlock StandardCrypto) = CardanoInfoArgs (CardanoProtocolParams StandardCrypto)
@@ -117,7 +129,7 @@ instance ( NodeInitStorage (CardanoBlock StandardCrypto)) => HasPointScheduleTes
 shrinkGenesisTest :: GenesisTestFull blk -> [GenesisTestFull blk]
 shrinkGenesisTest _ = []
 
-data TestResult = TestSuccess | TestFailure deriving (Eq, Ord, Show, Enum, Bounded)
+data TestResult = TestSuccess | TestFailure deriving (Eq, Show)
 
 -- | This function makes implicit reference to the fact that 'ExitCodes.Success'
 -- is defined as the empty status flag pattern.
@@ -218,15 +230,19 @@ main = do
   -- Generate a random RollBack test chain. We divide the test size by 10 here
   -- because 'TestBlock's have a hardcoded size of 100---anything longer will
   -- crash when being deserialized.
-  chain0 <- generate $ scale (`div` 10) $ do
-    gt <- genChains $ pure 1
-    pure $ gt {gtSchedule = rollbackSchedule 1 $ gtBlockTree gt}
+  seedGen <- newQCGen -- This will come from @testgen@ in the future.
+  let
+    quickCheckGenSize = 30
+    genChain = scale (flip div 10) $ do
+      gt <- genChains $ pure 1
+      pure $ gt {gtSchedule = rollbackSchedule 1 $ gtBlockTree gt}
+    chain0 = unGen genChain seedGen quickCheckGenSize
 
   let tree = makeShrinkTree shrinkGenesisTest chain0
       inputIndex = optShrinkIndex opts
   -- Note that both no index and the empty index must
   -- return the original chain. See [NOTE: shrink-index-properties]
-  chain <- case Ix.lookup (fold inputIndex) tree of
+  chain <- case Ix.lookup (foldMap convertShrinkIndex inputIndex) tree of
     Nothing -> do
       putStrLn "Incorrect shrink index"
       exitWithStatus BadUsage
@@ -239,10 +255,11 @@ main = do
         (optSimPeerPort opts)
         (optOutputTopologyFile opts)
         chain
+        seedGen
   case res of
     Left _ -> exitWithStatus InternalError
     Right testRes -> do
-      mightContinueShrinking <- case indexUpdate testRes tree (fold inputIndex) of
+      mightContinueShrinking <- case indexUpdate testRes tree (foldMap convertShrinkIndex inputIndex) of
         ContinueShrinkingWith ix -> do
           print ix
           pure $ S.singleton ContinueShrinking
@@ -254,11 +271,18 @@ main = do
           let isGlobalSuccess =
                 testRes == TestSuccess &&
                  (isNothing inputIndex || inputIndex == Just mempty)
+              testVersion = Serialize.TestVersion 1
+
+              -- When @testgen@ is implemented and we have real test case input, the
+              -- missing seed and test key will come from there.
+              serialize :: GenesisTestFull TestBlock -> Aeson.Value
+              serialize testCase = Serialize.serializeReifiedTestCase
+                Serialize.FormatVersionOne $ Serialize.toReifiedTestCase @_ @() -- TODO(nbloomf): test key type will be GenesisTestKey
+                  (error "main: test key not available") testVersion (gtBlockTree testCase)
+                  (gtSchedule testCase) ix (error "main: seed not available")
           case (optMinimalTestOutput opts, not isGlobalSuccess, Ix.lookup ix tree) of
-            -- TODO: Encoding is commented out for now because
-            -- the test file format is not available yet.
-            (Just minimalTestFilePath, True, Just chain') -> pure () -- encodeFile minimalTestFilePath chain'
-            (Nothing, True, Just chain') -> pure () -- print $ encode chain'
+            (Just minimalTestFilePath, True, Just chain') -> encodeFile minimalTestFilePath $ serialize chain'
+            (Nothing, True, Just chain') -> print $ encode $ serialize chain'
             _ -> pure ()
           pure mempty
       exitWithStatus . Flags $ testResultToFlag testRes <> mightContinueShrinking
@@ -396,10 +420,9 @@ runServer nutPort firstPort outputTopologyPath (GenesisTest {gtSchedule, gtSecur
   for_ peerServers $ uninterruptibleCancel . snd
 
   -- Return the test's acceptance criteria.
-
   -- This should be parsed out of the test file parameter and computed from
   -- the 'StateView', but is currently hard coded for convenience.
-  pure . boolToTestResult $ not . onTrunk gtBlockTree $ getTipPoint $ castTip tip
+  pure . boolToTestResult $ not . onTrunk gtBlockTree $ getTipPoint $ castTip tiprporate feedback)
 
 --------------------------------------------------------------------------------
 -- The remainder of this file is copied from the ouroboros-consensus
@@ -435,3 +458,8 @@ rollbackSchedule n blockTree =
     banalSchedulePoints = concatMap banalSchedulePoints' . AF.toOldestFirst
     banalSchedulePoints' :: blk -> [SchedulePoint blk]
     banalSchedulePoints' block = [scheduleTipPoint block, scheduleHeaderPoint block, scheduleBlockPoint block]
+
+-- | The 'ShrinkIndex' module is being moved to @ouroboros-consensus-diffusion@;
+-- this is a temporary shim until all references to the local module are removed.
+convertShrinkIndex :: OldIx.ShrinkIndex -> Ix.ShrinkIndex
+convertShrinkIndex (OldIx.Ix index) = Ix.path $ toList index

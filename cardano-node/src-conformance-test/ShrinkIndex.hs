@@ -6,7 +6,7 @@
 -- | Indexing the shrinking tree
 module ShrinkIndex
   ( ShrinkTree,
-    ShrinkIndex,
+    ShrinkIndex(Ix),
     makeShrinkTree,
     arbitraryShrinkTree,
     arbitraryShrinkIndexWithin,

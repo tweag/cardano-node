@@ -5,6 +5,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Main (main) where
 
@@ -13,23 +15,31 @@ import           Prelude hiding (lookup)
 import           Control.Error.Util (failWith)
 import           Control.Monad.Except (ExceptT(), runExceptT, throwError, MonadError(..))
 import           Control.Monad.IO.Class (MonadIO(..), liftIO)
-import           Data.Aeson (eitherDecode, FromJSON(..), ToJSON(..))
+import           Data.Aeson (eitherDecode, FromJSON(..), ToJSON(..), withText)
+import qualified Data.Aeson as Aeson
 import           Data.Aeson.Encode.Pretty (encodePretty)
+import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.ByteString.Lazy as BS
 import           Data.Char (isDigit)
 import           Data.Function (on)
-import           Data.Proxy
 import           Data.List (groupBy)
+import qualified Data.Text as T () -- TODO: Waiting for test key parsing.
 import qualified ExitCodes as Exit
 import           Options.Applicative
-import           Ouroboros.Consensus.Byron.Ledger.Block
+import qualified Ouroboros.Network.AnchoredFragment as AF
 import           ShrinkIndex
 import           System.Environment (getArgs)
 import           System.IO (hPutStr, hPutStrLn, stderr)
+import           Test.Consensus.Genesis.Setup (ConformanceTest(..))
+import           Test.Consensus.Genesis.Tests (GenesisTestKey, testSuite)
+import           Test.Consensus.Genesis.TestSuite (at, getTest)
 import           Test.Consensus.OrphanInstances ()
-import           Test.Consensus.PointSchedule (GenesisTest, PointSchedule)
-import           Test.QuickCheck (Arbitrary(..))
+import           Test.Consensus.PeerSimulator.StateView (StateView(..))
+import           Test.Consensus.PointSchedule (GenesisTest(..), GenesisTestFull)
+import qualified Test.Consensus.Serialize as Serialize
+import qualified Test.QuickCheck.Gen as QC
 import           Text.Read (readEither)
+import           Test.Util.TestBlock (TestBlock)
 
 nameString, versionString :: String
 nameString    = "conformance-test-viewer"
@@ -41,7 +51,6 @@ data Options = Options
   { optInputPath    :: Maybe FilePath -- ^ Where to read input (default stdin)
   , optShrinkIndex  :: ShrinkIndex    -- ^ Which shrink of the input to analyze
   , optOutputPath   :: Maybe FilePath -- ^ Where to write output (default stdout)
-  , optTestCaseType :: TestCaseType   -- ^ For testing; specify a test case type
   , optMode         :: Mode
   } deriving (Eq, Show)
 
@@ -81,24 +90,16 @@ optionParser = Options
         [ metavar "FILE_PATH"
         , help "File path for writing output"
         ]))
-  <*> (option (eitherReader parseTestCaseType)
-    (long "type" <> mconcat
-      [ short 't'
-      , value GenesisTestTC
-      , metavar "TYPE"
-      , help "Which type of test case to parse"
-      ]))
   <*> pure ShowDescendant
 
 
 
 main :: IO ()
 main = do
-  args <- getArgs
-  opts <- getOptions args
+  opts <- getArgs >>= getOptions
 
   result <- runExceptT $ do
-    testCase <- getInputTestCase (optTestCaseType opts) (optInputPath opts)
+    testCase <- getInputTestCase (optInputPath opts)
     shrinkResult <- analyzeShrinkTree (optMode opts) (optShrinkIndex opts) testCase
     writeOutputTestCase (optOutputPath opts) shrinkResult
 
@@ -114,7 +115,10 @@ main = do
 -- we have to instantiate the input at a specific type. To achieve this
 -- we hide the concrete type `a` behind an existential.
 data ViewableTestCase where
-  TestCase :: (FromJSON a, ToJSON a, Arbitrary a) => a -> ViewableTestCase
+  TestCase
+    :: (a ~ GenesisTestFull blk, AF.HasHeader blk, Show blk)
+    => Serialize.ReifiedTestCase GenesisTestKey Serialize.BlockRep
+    -> a -> (a -> [a]) -> ViewableTestCase
 
 
 
@@ -131,44 +135,66 @@ getOptions args = do
       execCompletion compl nameString >>= putStr
       Exit.exitWithStatus Exit.Success
 
--- | Determine from the program options what type the input test
--- case should be instantiated at, and then read it.
 getInputTestCase
   :: (MonadError String m, MonadIO m)
-  => TestCaseType -> Maybe FilePath -> m ViewableTestCase
-getInputTestCase testCaseType inputPath = do
-  case testCaseType of
-    IntTC         -> readInputTestCase (Proxy :: Proxy Int)    inputPath
-    StringTC      -> readInputTestCase (Proxy :: Proxy String) inputPath
-    GenesisTestTC -> error "Genesis test not yet implemented!" -- readInputTestCase @(GenesisTest ByronBlock (PointSchedule ByronBlock)) -- TODO
-
--- | Read and parse a JSON-encoded test case either
--- from a file or from stdin.
-readInputTestCase
-  :: forall a m. (MonadError String m, MonadIO m)
-  => (ToJSON a, FromJSON a, Arbitrary a)
-  => Proxy a -> Maybe FilePath -> m ViewableTestCase
-readInputTestCase _ inputPath = do
+  => Maybe FilePath -> m ViewableTestCase
+getInputTestCase inputPath = do
   input <- liftIO $ maybe BS.getContents BS.readFile inputPath
-  fmap TestCase $ case eitherDecode input of
-    Right ok -> pure (ok :: a)
+  rawJson <- case eitherDecode input of
+    Right ok -> pure (ok :: Aeson.Value)
     Left err -> throwError $ "Input decoding error: " <> err
 
--- | Analyze the shrink tree of a value of any type that
--- implements `Arbitrary`, `FromJSON`, and `ToJSON`;
+  _rawKey <- case rawJson of
+    Aeson.Object o -> case Aeson.lookup "key" o of
+      Just (Aeson.String k) -> pure k
+      _ -> throwError "Malformed JSON: missing string field \"key\""
+    _ -> throwError "Malformed JSON: must be an object"
+  testKey <- error "getInputTestCase: test key parsing not yet implemented"
+    -- TODO(nbloomf): fix this once test keys are implemented
+    -- case parseKeyName (T.unpack rawKey) of
+    --  Just (k :: GenesisTestKey) -> pure k
+    --  Nothing -> throwError $ "Unrecognized test case key: " <> T.unpack rawKey
+
+  reifiedTestCase :: Serialize.ReifiedTestCase GenesisTestKey Serialize.BlockRep
+    <- case eitherDecode input of
+      Right ok -> pure ok
+      Left err -> throwError $ "Input decoding error: " <> err
+
+  let
+    -- The StateView is not used in the existing shrinkers, but if it ever
+    -- is we will need to update the serialized test cases to include it.
+    -- See @ouroboros-consensus-diffusion:Test.Consensus.PointSchedule.Shrinking@
+    stateView :: StateView TestBlock
+    stateView = error "getInputTestCase: Cannot construct an accurate StateView"
+
+    generator = ctGenerator conformanceTest
+    Serialize.Seed seed = Serialize.rtcSeed reifiedTestCase
+    conformanceTest = getTest . at testSuite $ testKey
+    -- QuickCheck's default size is 30, which we adjust to get the initial test case.
+    genesisTest = QC.unGen generator seed (ctMaxSize conformanceTest 30)
+    shrinker val = ctShrinker conformanceTest val stateView
+
+  pure $ TestCase reifiedTestCase genesisTest shrinker
+
+-- | Analyze the shrink tree of a value of any viewable test case;
 -- returns the resulting test case.
 analyzeShrinkTree
   :: (Monad m)
   => Mode -> ShrinkIndex -> ViewableTestCase -> ExceptT String m ViewableTestCase
-analyzeShrinkTree mode shrinkIndex (TestCase testCase) = fmap TestCase $
-  case mode of
+analyzeShrinkTree mode shrinkIndex (TestCase key testCase shrinker) =
+  let makeTestCase x = TestCase key x shrinker
+  in fmap makeTestCase $ case mode of
     ShowDescendant -> failWith "Descendant does not exist. :(" $
-      lookup shrinkIndex $ arbitraryShrinkTree testCase
+      lookup shrinkIndex $ ShrinkIndex.makeShrinkTree shrinker testCase
 
 writeOutputTestCase
   :: (MonadIO m) => Maybe FilePath -> ViewableTestCase -> m ()
-writeOutputTestCase outputPath (TestCase testCase) = do
-  let bytes = encodePretty testCase
+writeOutputTestCase outputPath (TestCase reifiedTestCase testCase _) = do
+  let
+    Serialize.ReifiedTestCase {..} = reifiedTestCase
+    bytes = encodePretty $ Serialize.serializeReifiedTestCase
+      Serialize.FormatVersionOne $ Serialize.toReifiedTestCase rtcTestKey rtcTestVersion
+        (gtBlockTree testCase) (gtSchedule testCase) rtcShrinkIndex rtcSeed
   liftIO $ case outputPath of
     Nothing -> BS.putStr bytes >> putStrLn ""
     Just oPath -> BS.writeFile oPath bytes
@@ -185,10 +211,3 @@ parseShrinkIndexOption :: String -> Either String ShrinkIndex
 parseShrinkIndexOption =
   fmap path . traverse readEither . filter (all isDigit) . groupBy bothDigits
   where bothDigits = on (&&) isDigit
-
-parseTestCaseType :: String -> Either String TestCaseType
-parseTestCaseType symbol = case symbol of
-  "int"     -> Right IntTC
-  "string"  -> Right StringTC
-  "genesis" -> Right GenesisTestTC
-  _ -> Left $ "Unrecognized test case type \"" <> symbol <> "\""
