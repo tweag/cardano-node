@@ -64,6 +64,11 @@ import           Network.Mux.Trace (TraceLabelPeer (..))
 import qualified Network.Mux.Trace as Mux
 import           Network.Mux.Tracing ()
 
+import qualified Data.Aeson as AE
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TLE
+import Data.Functor.Contravariant ((>$<))
+
 -- | Construct tracers for all system components.
 --
 mkDispatchTracers
@@ -191,6 +196,14 @@ mkDispatchTracers nodeKernel trBase trForward mbTrEKG trDataPoint trConfig p = d
       , ledgerMetricsTracer = Tracer (traceWith ledgerMetricsTr)
       , rpcTracer = Tracer (traceWith rpcTr)
     }
+
+mkSimpleJsonTracer ::
+  (LogFormatting evt, MetaTrace evt) =>
+  Trace IO FormattedMessage ->
+  Trace IO evt
+mkSimpleJsonTracer trBase = f >$< trBase
+  where
+    f = FormattedHuman True . TL.toStrict . TLE.decodeUtf8 . AE.encode . forMachine DMaximum
 
 mkConsensusTracers :: forall blk.
   ( Consensus.RunNode blk
@@ -350,11 +363,10 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
                 trBase trForward mbTrEKG
                 ["txCounters", "Remote"]
 
-    !txPerasCertIn <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Cert", "Inbound"]
-    !txPerasCertOut <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Cert", "Outbound"]
-    !txPerasVoteIn <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Vote", "Inbound"]
-    !txPerasVoteOut <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Vote", "Outbound"]
-
+    let !txPerasCertIn = mkSimpleJsonTracer trBase
+        !txPerasCertOut = mkSimpleJsonTracer trBase
+        !txPerasVoteIn = mkSimpleJsonTracer trBase
+        !txPerasVoteOut = mkSimpleJsonTracer trBase
 
     configureTracers configReflection trConfig [txCountersTracer]
 
