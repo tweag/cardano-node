@@ -44,7 +44,7 @@ import           Cardano.Node.Configuration.POM (NodeConfiguration (..),
                    parseNodeConfigurationFP, getForkPolicy)
 import           Cardano.Node.Configuration.Socket (LocalSocketOrSocketInfo,
                    SocketOrSocketInfo, SocketOrSocketInfo' (..), gatherConfiguredSockets,
-                   getSocketOrSocketInfoAddr)
+                   getSocketOrSocketInfoAddr, ncSocketPath)
 import           Cardano.Node.Configuration.TopologyP2P
 import qualified Cardano.Node.Configuration.TopologyP2P as TopologyP2P
 import           Cardano.Node.Handlers.Shutdown
@@ -486,7 +486,8 @@ handleSimpleNode blockType runP tracers nc networkMagic onKernel = do
     rpcConfigVar <- newTVarIO (ncRpcConfig nc)
 
     let nodeArgs = RunNodeArgs
-          { rnGenesisConfig  = ncGenesisConfig nc
+          { rnNodeSocketPath = unFile <$> ncSocketPath (ncSocketConfig nc)
+          , rnGenesisConfig  = ncGenesisConfig nc
           , rnTraceConsensus = consensusTracers tracers
           , rnTraceNTN       = nodeToNodeTracers tracers
           , rnTraceNTC       = nodeToClientTracers tracers
