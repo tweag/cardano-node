@@ -1676,7 +1676,7 @@ instance LogFormatting (PerasVoteDB.TraceEvent blk) where
   forMachine _dtal (PerasVoteDB.AddVote cert _ _) =
     mconcat
       [ "kind" .= String "AddVote"
-      , "cert" .= String (Text.pack $ show cert)
+      , "vote" .= String (Text.pack $ show cert)
       ]
   forMachine _dtal (PerasVoteDB.GarbageCollected slotNo) =
     mconcat
