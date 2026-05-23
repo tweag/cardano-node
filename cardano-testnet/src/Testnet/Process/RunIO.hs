@@ -10,6 +10,7 @@ module Testnet.Process.RunIO
   , execCli_
   , mkExecConfig
   , procNode
+  , procNodeWith
   , procKesAgent
   , execKesAgentControl_
   , procFlex
@@ -263,6 +264,19 @@ binDist pkg binaryEnv = do
       | componentName == Just needle = Just c
       | otherwise = findComponent needle topLevelComponents <|> findComponent needle components
 
+procNodeWith
+  :: (HasCallStack)
+  => [(String, String)]
+  -> [String]
+  -- ^ Arguments to the CLI command
+  -> RIO env CreateProcess
+  -- ^ Captured stdout
+procNodeWith envList =
+  GHC.withFrozenCallStack $
+    procFlex'
+      (defaultExecConfig { execConfigEnv = pure envList })
+      "cardano-node"
+      "CARDANO_NODE"
 
 procNode
   :: (HasCallStack)
