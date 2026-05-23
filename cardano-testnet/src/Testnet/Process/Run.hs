@@ -13,7 +13,6 @@ module Testnet.Process.Run
   , execKESAgentControl_
   , initiateProcess
   , procCli
-  , procNodeWith
   , procNode
   , procKESAgent
   , procSubmitApi
@@ -134,39 +133,17 @@ execCliStdoutToJson execConfig cmd = GHC.withFrozenCallStack $ do
 -- | Create a 'CreateProcess' describing how to start the cardano-cli process
 -- and an argument list.
 procCli
-  :: (MonadIO m, HasCallStack)
+  :: (MonadTest m, MonadCatch m, MonadIO m, HasCallStack)
   => [String]
   -- ^ Arguments to the CLI command
   -> m CreateProcess
   -- ^ Captured stdout
 procCli = GHC.withFrozenCallStack $ H.procFlex "cardano-cli" "CARDANO_CLI"
 
-procNodeWith
-  :: (MonadTest m, MonadIO m, HasCallStack)
-  => [(String, String)]
-  -- ^ Env
-  -> [String]
-  -- ^ Arguments to the CLI command
-  -> m CreateProcess
-  -- ^ Captured stdout
-procNodeWith envList args = GHC.withFrozenCallStack $ do
-  process <-
-    H.procFlex'
-      (H.defaultExecConfig { H.execConfigEnv = pure envList })
-      "cardano-node"
-      "CARDANO_NODE"
-      args
-  H.annotate . ("━━━━ command ━━━━\n" <>)$
-    case IO.cmdspec process of
-      IO.ShellCommand cmd -> cmd
-      IO.RawCommand cmd cmdArgs -> cmd <> " " <> unwords cmdArgs
-  pure process
-
--- TODO: Write procNode in terms of procNodeWith
 -- | Create a 'CreateProcess' describing how to start the cardano-node process
 -- and an argument list.
 procNode
-  :: (MonadTest m, MonadIO m, HasCallStack)
+  :: (MonadTest m, MonadCatch m, MonadIO m, HasCallStack)
   => [String]
   -- ^ Arguments to the CLI command
   -> m CreateProcess
@@ -182,7 +159,7 @@ procNode args = GHC.withFrozenCallStack $ do
 -- | Create a 'CreateProcess' describing how to start the kes-agent process
 -- and an argument list.
 procKESAgent
-  :: (MonadTest m, MonadIO m, HasCallStack)
+  :: (MonadTest m, MonadCatch m, MonadIO m, HasCallStack)
   => [String]
   -- ^ Arguments to the CLI command
   -> m CreateProcess
@@ -212,7 +189,7 @@ execKESAgentControl_ = GHC.withFrozenCallStack $ void . execKESAgentControl
 -- | Create a 'CreateProcess' describing how to start the cardano-submit-api process
 -- and an argument list.
 procSubmitApi
-  :: (MonadIO m, HasCallStack)
+  :: (MonadTest m, MonadCatch m, MonadIO m, HasCallStack)
   => [String]
   -- ^ Arguments to the CLI command
   -> m CreateProcess
@@ -222,7 +199,7 @@ procSubmitApi = GHC.withFrozenCallStack $ H.procFlex "cardano-submit-api" "CARDA
 -- | Create a 'CreateProcess' describing how to start the cardano-node-chairman process
 -- and an argument list.
 procChairman
-  :: (MonadIO m, HasCallStack)
+  :: (MonadTest m, MonadCatch m, MonadIO m, HasCallStack)
   => [String]
   -- ^ Arguments to the CLI command
   -> m CreateProcess

@@ -57,7 +57,7 @@ import           Cardano.Node.Testnet.Paths (defaultSocketName)
 import qualified Testnet.Ping as Ping
 import           Testnet.Process.Run (ProcessError (..), initiateProcess)
 import           Testnet.Process.RunIO (execCli_, execKesAgentControl_, liftIOAnnotated,
-                   procKesAgent, procNodeWith)
+                   procKesAgent, procNode)
 import           Testnet.Types (TestnetKesAgent (..), TestnetNode (..),
                    TestnetRuntime (configurationFile), showIpv4Address, testnetSprockets)
 
@@ -156,7 +156,7 @@ startNode tp node ipv4 port _testnetMagic nodeCmd = GHC.withFrozenCallStack $ do
                              , "--port", show port
                              , "--host-addr", showIpv4Address ipv4
                              ]
-    nodeProcess <- newExceptT . fmap (first ExecutableRelatedFailure) . try $ runRIO () $ procNodeWith [("NODE_NAME", node)] completeNodeCmd
+    nodeProcess <- newExceptT . fmap (first ExecutableRelatedFailure) . try $ runRIO () $ procNode completeNodeCmd
 
     -- The port number if it is obtained using 'H.randomPort', it is firstly bound to and then closed. The closing
     -- and release in the operating system is done asynchronously and can be slow. Here we wait until the port
