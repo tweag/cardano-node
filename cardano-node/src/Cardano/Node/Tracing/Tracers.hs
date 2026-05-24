@@ -68,6 +68,8 @@ import qualified Data.Aeson as AE
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TLE
 import Data.Functor.Contravariant ((>$<))
+import qualified Data.Aeson.KeyMap as KM
+import qualified Data.Aeson.Key as K
 
 -- | Construct tracers for all system components.
 --
@@ -197,13 +199,21 @@ mkDispatchTracers nodeKernel trBase trForward mbTrEKG trDataPoint trConfig p = d
       , rpcTracer = Tracer (traceWith rpcTr)
     }
 
+addKey :: String -> String -> AE.Object -> AE.Object
+addKey key val =
+  KM.insert (K.fromString key) (AE.toJSON val)
+
+addTypeAndDirection :: String -> String -> AE.Object -> AE.Object
+addTypeAndDirection t d = addKey "type" t . addKey "direction" d
+
 mkSimpleJsonTracer ::
   (LogFormatting evt, MetaTrace evt) =>
+  (AE.Object -> AE.Object) ->
   Trace IO FormattedMessage ->
   Trace IO evt
-mkSimpleJsonTracer trBase = f >$< trBase
+mkSimpleJsonTracer aMap trBase = f >$< trBase
   where
-    f = FormattedHuman True . TL.toStrict . TLE.decodeUtf8 . AE.encode . forMachine DMaximum
+    f = FormattedHuman True . TL.toStrict . TLE.decodeUtf8 . AE.encode . aMap . forMachine DMaximum
 
 mkConsensusTracers :: forall blk.
   ( Consensus.RunNode blk
@@ -363,10 +373,10 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
                 trBase trForward mbTrEKG
                 ["txCounters", "Remote"]
 
-    let !txPerasCertIn = mkSimpleJsonTracer trBase
-        !txPerasCertOut = mkSimpleJsonTracer trBase
-        !txPerasVoteIn = mkSimpleJsonTracer trBase
-        !txPerasVoteOut = mkSimpleJsonTracer trBase
+    let !txPerasCertIn = mkSimpleJsonTracer (addTypeAndDirection "Cert" "Inbound") trBase
+        !txPerasCertOut = mkSimpleJsonTracer (addTypeAndDirection "Cert" "Outbound") trBase
+        !txPerasVoteIn = mkSimpleJsonTracer (addTypeAndDirection "Vote" "Inbound") trBase
+        !txPerasVoteOut = mkSimpleJsonTracer (addTypeAndDirection "Vote" "Outbound") trBase
 
     configureTracers configReflection trConfig [txCountersTracer]
 
