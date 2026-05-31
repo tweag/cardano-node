@@ -101,3 +101,12 @@ allow-newer:
 -- Do NOT add more source-repository-package stanzas here unless they are strictly
 -- temporary! Please read the section in CONTRIBUTING about updating dependencies.
 
+package ouroboros-consensus
+  ghc-options: -Wno-redundant-constraints
+  -- diffusion
+  ghc-options: -Wno-unused-matches
+               -Wno-unused-imports
+               -Wno-unused-do-bind
+
+package ouroboros-consensus-lmdb
+  ghc-options: -Wno-redundant-constraints
