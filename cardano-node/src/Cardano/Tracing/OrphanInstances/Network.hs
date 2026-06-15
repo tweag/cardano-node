@@ -379,7 +379,6 @@ instance HasSeverityAnnotation (PeerSelectionActionsTrace SockAddr lAddr) where
      PeerStatusChangeFailure {} -> Error
      PeerMonitoringError {}     -> Error
      PeerMonitoringResult {}    -> Debug
-     AcquireConnectionError {}  -> Error
 
 instance HasPrivacyAnnotation (PeerSelectionCounters extraCounters)
 instance HasSeverityAnnotation (PeerSelectionCounters extraCounters) where
@@ -1077,7 +1076,15 @@ instance (Show ntnAddr, Show ntcAddr) => ToObject (Diffusion.DiffusionTracer ntn
     [ "kand" .= String "SystemdSocketConfiguration"
     , "message" .= String (pack (show config))
     ]
-
+  toObject _verb (Diffusion.ConfiguredLocalSocket {}) = mconcat
+    [ "kand" .= String "ConfiguredLocalSocket"
+    ]
+  toObject _verb (Diffusion.InsecureLocalSocketDirectory {}) = mconcat
+    [ "kand" .= String "InsecureLocalSocketDirectory"
+    ]
+  toObject _verb (Diffusion.InsecureLocalSocketPermissions {}) = mconcat
+    [ "kand" .= String "InsecureLocalSocketPermissions"
+    ]
 
 instance ToObject NtN.AcceptConnectionsPolicyTrace where
   toObject _verb (NtN.ServerTraceAcceptConnectionRateLimiting delay numOfConnections) =
@@ -1893,10 +1900,6 @@ instance Show lAddr => ToObject (PeerSelectionActionsTrace SockAddr lAddr) where
              , "connectionId" .= toJSON connId
              , "withProtocolTemp" .= show wf
              ]
-  toObject _verb (AcquireConnectionError exception) =
-    mconcat [ "kind" .= String "AcquireConnectionError"
-            , "error" .= displayException exception
-            ]
 
 instance ToObject CardanoPeerSelectionCounters where
   toObject _verb PeerSelectionCounters {..} =

@@ -19,3 +19,6 @@
 [submodule "cardano-cli"]
 	path = cardano-cli
 	url = https://github.com/IntersectMBO/cardano-cli.git
+[submodule "dmq-node"]
+	path = dmq-node
+	url = git@github.com:tweag/dmq-node.git
