@@ -93,6 +93,8 @@ import           Ouroboros.Network.TxSubmission.Inbound.V2 (ProcessedTxCount (..
                    TraceTxLogic (..), TraceTxSubmissionInbound (..), TxDecision (..),
                    TxSubmissionCounters (..), TxsToMempool (..))
 import           Ouroboros.Network.TxSubmission.Outbound (TraceTxSubmissionOutbound (..))
+import           Ouroboros.Network.Protocol.ObjectDiffusion.Type (ObjectDiffusion)
+import qualified Ouroboros.Network.Protocol.ObjectDiffusion.Type as OD
 
 import           Control.Exception (Exception (..))
 import           Control.Monad.Class.MonadTime.SI (DiffTime, Time (..))
@@ -360,6 +362,8 @@ instance HasSeverityAnnotation (TracePeerSelection extraDebugState extraFlags ex
       TraceVerifyPeerSnapshot True  -> Info
       TraceVerifyPeerSnapshot False -> Error
 
+      TraceForgottenPeers {} -> Notice
+
       ExtraTrace {} -> Info
 
 instance HasPrivacyAnnotation CardanoDebugPeerSelection
@@ -375,7 +379,6 @@ instance HasSeverityAnnotation (PeerSelectionActionsTrace SockAddr lAddr) where
      PeerStatusChangeFailure {} -> Error
      PeerMonitoringError {}     -> Error
      PeerMonitoringResult {}    -> Debug
-     AcquireConnectionError {}  -> Error
 
 instance HasPrivacyAnnotation (PeerSelectionCounters extraCounters)
 instance HasSeverityAnnotation (PeerSelectionCounters extraCounters) where
@@ -657,9 +660,12 @@ instance (Show addr, Show versionNumber, Show agreedOptions)
 instance (Show addr, ToJSON addr, ToObject addr)
       => Transformable Text IO (ConnMgr.AbstractTransitionTrace addr) where
   trTransformer = trStructuredText
-instance Show addr
+
+-- NOTE: Is Show an alias to PrettyShow?
+-- TODO: Make sure "pack (show a)" works as expected
+instance ()
       => HasTextFormatter (ConnMgr.AbstractTransitionTrace addr) where
-  formatText a _ = pack (show a)
+  formatText _a _ = pack "ConnMgr.AbstractTransitionTrace: Undefined"
 
 instance (Show addr, ToObject addr, ToJSON addr)
       => Transformable Text IO (Server.Trace addr) where
@@ -675,12 +681,13 @@ instance Show addr
       => HasTextFormatter (InboundGovernor.Trace addr) where
   formatText a _ = pack (show a)
 
-instance (Show addr, ToJSON addr)
+-- TODO: See "HasTextFormatter (ConnMgr.AbstractTransitionTrace addr)"
+instance (ToJSON addr)
       => Transformable Text IO (Server.RemoteTransitionTrace addr) where
   trTransformer = trStructuredText
-instance Show addr
+instance ()
       => HasTextFormatter (Server.RemoteTransitionTrace addr) where
-  formatText a _ = pack (show a)
+  formatText _a _ = pack "Server.RemoteTransitionTrace: Undefined"
 
 instance (Show txid, Show tx, Show addr)
       => Transformable Text IO (TraceTxLogic txid tx addr) where
@@ -1069,7 +1076,15 @@ instance (Show ntnAddr, Show ntcAddr) => ToObject (Diffusion.DiffusionTracer ntn
     [ "kand" .= String "SystemdSocketConfiguration"
     , "message" .= String (pack (show config))
     ]
-
+  toObject _verb (Diffusion.ConfiguredLocalSocket {}) = mconcat
+    [ "kand" .= String "ConfiguredLocalSocket"
+    ]
+  toObject _verb (Diffusion.InsecureLocalSocketDirectory {}) = mconcat
+    [ "kand" .= String "InsecureLocalSocketDirectory"
+    ]
+  toObject _verb (Diffusion.InsecureLocalSocketPermissions {}) = mconcat
+    [ "kand" .= String "InsecureLocalSocketPermissions"
+    ]
 
 instance ToObject NtN.AcceptConnectionsPolicyTrace where
   toObject _verb (NtN.ServerTraceAcceptConnectionRateLimiting delay numOfConnections) =
@@ -1479,6 +1494,9 @@ instance
     , ToJSONKey addr
     ) =>
     ToObject (TracePeerSelection Cardano.DebugPeerSelectionState Cardano.PeerTrustable (Cardano.ExtraPeers addr) addr) where
+  toObject _verb (TraceForgottenPeers _) =
+    mconcat [ "kind" .= String "ForgottenPeers"
+            ]
   toObject _verb (TraceLocalRootPeersChanged lrp lrp') =
     mconcat [ "kind" .= String "LocalRootPeersChanged"
              , "previous" .= toJSON lrp
@@ -1882,10 +1900,6 @@ instance Show lAddr => ToObject (PeerSelectionActionsTrace SockAddr lAddr) where
              , "connectionId" .= toJSON connId
              , "withProtocolTemp" .= show wf
              ]
-  toObject _verb (AcquireConnectionError exception) =
-    mconcat [ "kind" .= String "AcquireConnectionError"
-            , "error" .= displayException exception
-            ]
 
 instance ToObject CardanoPeerSelectionCounters where
   toObject _verb PeerSelectionCounters {..} =
@@ -2367,3 +2381,35 @@ instance Show txid => ToObject (TxDecision txid tx) where
                   , map (first show) . Map.toList $ txdTxsToRequest, g txdTxsToMempool)]
             in f decision
          _otherwise -> mempty
+
+
+-- NOTE: There is a lot of overlap between ToObject and LogFormatting
+instance ToObject (AnyMessage (ObjectDiffusion objectId object)) where
+   toObject _verb (AnyMessageAndAgency stok OD.MsgInit {}) =
+     mconcat [ "kind" .= String "MsgInit"
+              , "agency" .= String (pack $ show stok)
+              ]
+   toObject _verb (AnyMessageAndAgency stok OD.MsgRequestObjectIds {}) =
+     mconcat [ "kind" .= String "MsgRequestObjectIds"
+              , "agency" .= String (pack $ show stok)
+              ]
+   toObject _verb (AnyMessageAndAgency stok OD.MsgReplyObjectIds {}) =
+     mconcat [ "kind" .= String "MsgReplyObjectIds"
+              , "agency" .= String (pack $ show stok)
+              ]
+   toObject _verb (AnyMessageAndAgency stok OD.MsgRequestObjects {}) =
+     mconcat [ "kind" .= String "MsgRequestObjects"
+              , "agency" .= String (pack $ show stok)
+              ]
+   toObject _verb (AnyMessageAndAgency stok OD.MsgReplyObjects {}) =
+     mconcat [ "kind" .= String "MsgReplyObjects"
+              , "agency" .= String (pack $ show stok)
+              ]
+   toObject _verb (AnyMessageAndAgency stok OD.MsgDone {}) =
+     mconcat [ "kind" .= String "MsgDone"
+              , "agency" .= String (pack $ show stok)
+              ]
+
+instance (ToObject peer)
+     => Transformable Text IO (TraceLabelPeer peer (NtN.TraceSendRecv (ObjectDiffusion objectId object))) where
+  trTransformer = trStructured

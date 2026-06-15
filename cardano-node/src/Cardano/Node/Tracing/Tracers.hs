@@ -64,6 +64,13 @@ import           Network.Mux.Trace (TraceLabelPeer (..))
 import qualified Network.Mux.Trace as Mux
 import           Network.Mux.Tracing ()
 
+import qualified Data.Aeson as AE
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.Encoding as TLE
+import Data.Functor.Contravariant ((>$<))
+import qualified Data.Aeson.KeyMap as KM
+import qualified Data.Aeson.Key as K
+
 -- | Construct tracers for all system components.
 --
 mkDispatchTracers
@@ -191,6 +198,22 @@ mkDispatchTracers nodeKernel trBase trForward mbTrEKG trDataPoint trConfig p = d
       , ledgerMetricsTracer = Tracer (traceWith ledgerMetricsTr)
       , rpcTracer = Tracer (traceWith rpcTr)
     }
+
+addKey :: String -> String -> AE.Object -> AE.Object
+addKey key val =
+  KM.insert (K.fromString key) (AE.toJSON val)
+
+addTypeAndDirection :: String -> String -> AE.Object -> AE.Object
+addTypeAndDirection t d = addKey "type" t . addKey "direction" d
+
+mkSimpleJsonTracer ::
+  (LogFormatting evt, MetaTrace evt) =>
+  (AE.Object -> AE.Object) ->
+  Trace IO FormattedMessage ->
+  Trace IO evt
+mkSimpleJsonTracer aMap trBase = f >$< trBase
+  where
+    f = FormattedHuman True . TL.toStrict . TLE.decodeUtf8 . AE.encode . aMap . forMachine DMaximum
 
 mkConsensusTracers :: forall blk.
   ( Consensus.RunNode blk
@@ -349,6 +372,12 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
     !txCountersTracer  <-  mkCardanoTracer
                 trBase trForward mbTrEKG
                 ["txCounters", "Remote"]
+
+    let !txPerasCertIn = mkSimpleJsonTracer (addTypeAndDirection "Cert" "Inbound") trBase
+        !txPerasCertOut = mkSimpleJsonTracer (addTypeAndDirection "Cert" "Outbound") trBase
+        !txPerasVoteIn = mkSimpleJsonTracer (addTypeAndDirection "Vote" "Inbound") trBase
+        !txPerasVoteOut = mkSimpleJsonTracer (addTypeAndDirection "Vote" "Outbound") trBase
+
     configureTracers configReflection trConfig [txCountersTracer]
 
     pure $ Consensus.Tracers
@@ -403,6 +432,10 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
           traceWith txLogicTracer
       , Consensus.txCountersTracer = Tracer $
           traceWith txCountersTracer
+      , Consensus.perasCertDiffusionInboundTracer = Tracer $ traceWith txPerasCertIn
+      , Consensus.perasCertDiffusionOutboundTracer = Tracer $ traceWith txPerasCertOut
+      , Consensus.perasVoteDiffusionInboundTracer = Tracer $ traceWith txPerasVoteIn
+      , Consensus.perasVoteDiffusionOutboundTracer = Tracer $ traceWith txPerasVoteOut
       }
 
 mkNodeToClientTracers :: forall blk.
@@ -500,6 +533,10 @@ mkNodeToNodeTracers configReflection trBase trForward mbTrEKG _trDataPoint trCon
     !txLogicTracer  <-  mkCardanoTracer
                 trBase trForward mbTrEKG
                 ["txLogic", "Remote"]
+
+    !txPerasCertDiffusion <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Cert", "Inbound"]
+    !txPerasVoteDiffusion <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Vote", "Inbound"]
+
     configureTracers configReflection trConfig [txLogicTracer]
 
     pure $ NtN.Tracers
@@ -519,6 +556,10 @@ mkNodeToNodeTracers configReflection trBase trForward mbTrEKG _trDataPoint trCon
           traceWith peerSharingTracer
       , NtN.tTxLogicTracer = Tracer $
           traceWith txLogicTracer
+      , NtN.tPerasCertDiffusionTracer = Tracer $
+          traceWith txPerasCertDiffusion
+      , NtN.tPerasVoteDiffusionTracer = Tracer $
+          traceWith txPerasVoteDiffusion
       }
 
 mkDiffusionTracers ::

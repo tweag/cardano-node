@@ -44,7 +44,7 @@ import           Cardano.Node.Configuration.POM (NodeConfiguration (..),
                    parseNodeConfigurationFP, getForkPolicy)
 import           Cardano.Node.Configuration.Socket (LocalSocketOrSocketInfo,
                    SocketOrSocketInfo, SocketOrSocketInfo' (..), gatherConfiguredSockets,
-                   getSocketOrSocketInfoAddr)
+                   getSocketOrSocketInfoAddr, ncSocketPath)
 import           Cardano.Node.Configuration.TopologyP2P
 import qualified Cardano.Node.Configuration.TopologyP2P as TopologyP2P
 import           Cardano.Node.Handlers.Shutdown
@@ -486,6 +486,7 @@ handleSimpleNode blockType runP tracers nc networkMagic onKernel = do
     rpcConfigVar <- newTVarIO (ncRpcConfig nc)
 
     let nodeArgs = RunNodeArgs
+          -- { rnNodeSocketPath = unFile <$> ncSocketPath (ncSocketConfig nc)
           { rnGenesisConfig  = ncGenesisConfig nc
           , rnTraceConsensus = consensusTracers tracers
           , rnTraceNTN       = nodeToNodeTracers tracers
@@ -656,14 +657,10 @@ handleSimpleNode blockType runP tracers nc networkMagic onKernel = do
         Just version_ -> Map.takeWhileAntitone (<= version_)
 
   LedgerDbConfiguration
-    snapInterval
-    numSnaps
+    snapshotPolicyArgs
     queryBatchSize
     ldbBackend
     deprecatedOpts = ncLedgerDbConfig nc
-
-  snapshotPolicyArgs :: SnapshotPolicyArgs
-  snapshotPolicyArgs = SnapshotPolicyArgs numSnaps snapInterval
 
 --------------------------------------------------------------------------------
 -- SIGHUP Handlers

@@ -47,9 +47,10 @@ import           Ouroboros.Consensus.Node (NodeDatabasePaths (..))
 import           Ouroboros.Consensus.Node.Genesis (GenesisConfig, GenesisConfigFlags,
                    defaultGenesisConfigFlags, mkGenesisConfig)
 import           Ouroboros.Consensus.Storage.LedgerDB.Args (QueryBatchSize (..))
-import           Ouroboros.Consensus.Storage.LedgerDB.Snapshots (NumOfDiskSnapshots (..),
-                   SnapshotInterval (..))
-import           Ouroboros.Consensus.Storage.LedgerDB.V1.Args (FlushFrequency (..))
+import           Ouroboros.Consensus.Util.Args (OverrideOrDefault (..))
+import           Ouroboros.Consensus.Storage.LedgerDB.Snapshots (
+                   SnapshotFrequency (..), SnapshotFrequencyArgs (..), SnapshotPolicyArgs (..),
+                   defaultSnapshotPolicyArgs, NumOfDiskSnapshots (..))
 import           Ouroboros.Network.Diffusion.Configuration as Configuration
 import qualified Ouroboros.Network.Diffusion.Configuration as Ouroboros
 import qualified Ouroboros.Network.Mux as Mux
@@ -76,6 +77,8 @@ import           System.Random (randomIO)
 
 import           Generic.Data (gmappend)
 import           Generic.Data.Orphans ()
+
+import           Cardano.Ledger.BaseTypes.NonZero (nonZero)
 
 -- | Isomorphic to a `Maybe DiffTime`, but expresses what `Nothing` means, in
 -- this case that we want to /NOT/ override the default timeout.
@@ -510,8 +513,11 @@ instance FromJSON PartialNodeConfiguration where
               Nothing -> return Nothing
 
       parseLedgerDbConfig v = do
-        let snapInterval x = fmap (RequestedSnapshotInterval . secondsToDiffTime) <$> x .:? "SnapshotInterval"
-            snapNum x      = fmap RequestedNumOfDiskSnapshots <$> x .:? "NumOfDiskSnapshots"
+        let snapInterval x = do
+              si <- x .:? "SnapshotInterval"
+              when (any (<= 0) si) $ fail $ "Non-positive SnapshotInterval: " <> show si
+              pure $ Override <$> (si >>= nonZero)
+            snapNum x      = fmap (Override . NumOfDiskSnapshots) <$> x .:? "NumOfDiskSnapshots"
 
         mTopLevelSnapInterval <- snapInterval v
         mTopLevelSnapNum <- snapNum v
@@ -525,27 +531,38 @@ instance FromJSON PartialNodeConfiguration where
         mLedgerDB <- v .:? "LedgerDB"
         case mLedgerDB of
            Nothing -> do
-             let si = fromMaybe DefaultSnapshotInterval mTopLevelSnapInterval
-                 sn = fromMaybe DefaultNumOfDiskSnapshots mTopLevelSnapNum
-             return $ Just $ LedgerDbConfiguration sn si DefaultQueryBatchSize V2InMemory deprecatedOpts
+             let si = fromMaybe UseDefault mTopLevelSnapInterval
+                 sn = fromMaybe UseDefault mTopLevelSnapNum
+                 sf = SnapshotFrequencyArgs {
+                     sfaInterval = si
+                   , sfaOffset = UseDefault
+                   , sfaRateLimit = UseDefault
+                   , sfaDelaySnapshotRange = UseDefault
+                   }
+                 spArgs = SnapshotPolicyArgs (SnapshotFrequency sf) sn
+             return $ Just $ LedgerDbConfiguration spArgs DefaultQueryBatchSize V2InMemory deprecatedOpts
+
            Just ledgerDB -> flip (withObject "LedgerDB") ledgerDB $ \o -> do
-             ldbSnapInterval <- (getLast . (Last mTopLevelSnapInterval <>) . Last <$> snapInterval o) .!= DefaultSnapshotInterval
-             ldbSnapNum      <- (getLast . (Last mTopLevelSnapNum <>) . Last <$> snapNum o)           .!= DefaultNumOfDiskSnapshots
+             ldbSnapInterval <- (getLast . (Last mTopLevelSnapInterval <>) . Last <$> snapInterval o) .!= UseDefault
+             ldbSnapNum      <- (getLast . (Last mTopLevelSnapNum <>) . Last <$> snapNum o)           .!= UseDefault
+             ldbSnapOffset   <- (fmap Override <$> o .:? "SlotOffset") .!= UseDefault
+             ldbSnapRateLimit<- (fmap (Override . secondsToDiffTime) <$> o .:? "RateLimit") .!= UseDefault
              qsize           <- (fmap RequestedQueryBatchSize <$> o .:? "QueryBatchSize") .!= DefaultQueryBatchSize
              backend         <- o .:? "Backend" .!= "V2InMemory"
              selector        <- case backend of
-               "V1LMDB"     -> do
-                 flush <- (fmap RequestedFlushFrequency <$> o .:? "FlushFrequency")       .!= DefaultFlushFrequency
-                 mapSize :: Maybe Gigabytes <- o .:? "MapSize"
-                 lmdbPath :: Maybe FilePath <- o .:? "LiveTablesPath"
-                 mxReaders :: Maybe Int <- o .:? "MaxReaders"
-                 return $ V1LMDB flush lmdbPath mapSize mxReaders
                "V2InMemory" -> return V2InMemory
                "V2LSM" -> do
                  lsmPath :: Maybe FilePath <- o .:? "LSMDatabasePath"
                  pure $ V2LSM lsmPath
                _ -> fail $ "Malformed LedgerDB Backend: " <> backend
-             pure $ Just $ LedgerDbConfiguration ldbSnapNum ldbSnapInterval qsize selector deprecatedOpts
+             let sf = SnapshotFrequencyArgs {
+                     sfaInterval = ldbSnapInterval
+                   , sfaOffset = ldbSnapOffset
+                   , sfaRateLimit = ldbSnapRateLimit
+                   , sfaDelaySnapshotRange = UseDefault
+                   }
+                 spArgs = SnapshotPolicyArgs (SnapshotFrequency sf) ldbSnapNum
+             pure $ Just $ LedgerDbConfiguration spArgs qsize selector deprecatedOpts
 
       parseByronProtocol v = do
         primary   <- v .:? "ByronGenesisFile"
@@ -712,8 +729,7 @@ defaultPartialNodeConfiguration =
     , pncLedgerDbConfig =
         Last $ Just $
           LedgerDbConfiguration
-            DefaultNumOfDiskSnapshots
-            DefaultSnapshotInterval
+            defaultSnapshotPolicyArgs
             DefaultQueryBatchSize
             V2InMemory
             noDeprecatedOptions

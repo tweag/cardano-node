@@ -13,8 +13,8 @@ repository cardano-haskell-packages
 -- See CONTRIBUTING for information about these, including some Nix commands
 -- you need to run if you change them
 index-state:
-  , hackage.haskell.org 2026-04-17T09:20:55Z
-  , cardano-haskell-packages 2026-05-02T16:21:41Z
+  , hackage.haskell.org 2026-05-18T17:14:36Z
+  , cardano-haskell-packages 2026-05-18T13:56:34Z
 
 active-repositories:
   , :rest
@@ -27,6 +27,8 @@ constraints:
   , any.proto-lens >= 0.7.1.7
   -- https://github.com/channable/alfred-margaret/pull/76
   , any.alfred-margaret < 2.1.1.0 || > 2.1.1.0
+
+  , any.validation >= 1.2.2
 
 -- acts has a finitary flag; disabling it avoids pulling in finitary entirely,
 -- which sidesteps the GHC type-checker plugin incompatibility with
@@ -51,6 +53,38 @@ packages:
   bench/trace-schemas/scripts/schema-gen
   trace-resources
   trace-forward
+  ouroboros-consensus
+  ouroboros-network/ouroboros-network
+  ouroboros-network/cardano-diffusion
+  ouroboros-network/cardano-ping
+  ouroboros-network/monoidal-synchronisation
+  ouroboros-network/network-mux
+  ekg-forward
+  hermod-tracing/trace-dispatcher
+  cardano-api/cardano-api
+  cardano-api/cardano-rpc
+  dmq-node/dmq-node
+  cardano-base/cardano-git-rev
+  cardano-base/cardano-crypto-class
+  cardano-base/cardano-slotting
+  cardano-base/cardano-base
+  cardano-base/cardano-crypto-peras
+  cardano-base/orphans-deriving-via
+  cardano-base/cardano-crypto-praos
+  cardano-base/heapwords
+  cardano-base/cardano-binary
+  cardano-base/measures
+  cardano-base/base-deriving-via
+  cardano-base/cardano-strict-containers
+  plutus/plutus-benchmark/plutus-benchmark.cabal
+  plutus/plutus-executables/plutus-executables.cabal
+  plutus/plutus-ledger-api/plutus-ledger-api.cabal
+  plutus/cardano-constitution/cardano-constitution.cabal
+  plutus/plutus-tx/plutus-tx.cabal
+  plutus/plutus-tx-plugin/plutus-tx-plugin.cabal
+  plutus/plutus-metatheory/plutus-metatheory.cabal
+  plutus/plutus-conformance/plutus-conformance.cabal
+  plutus/plutus-core/plutus-core.cabal
 
 -- Needed when cross compiling
 extra-packages: alex, dmq-node >= 0.4.2.0
@@ -86,8 +120,80 @@ allow-newer:
 allow-newer:
   , io-sim:time
   , io-classes:time
+  , cardano-node:cardano-api
+  , cardano-node:cardano-rpc
+  , cardano-submit-api:cardano-api
+  , cardano-cli:cardano-api
+  , cardano-cli:cardano-crypto-class
+  , cardano-testnet:cardano-api
+  , cardano-testnet:cardano-crypto-class
+  , iohk-monitoring:contra-tracer
+  , cardano-recon-framework:contra-tracer
+  , cardano-node:kes-agent
+  , dmq-node:kes-agent-crypto
+  , network-mux:contra-tracer
+  , plutus-scripts-bench:*
+  , tx-generator:*
 
 -- IMPORTANT
 -- Do NOT add more source-repository-package stanzas here unless they are strictly
 -- temporary! Please read the section in CONTRIBUTING about updating dependencies.
 
+package ouroboros-consensus
+  ghc-options: -Wno-redundant-constraints
+  -- diffusion
+  ghc-options: -Wno-unused-matches
+               -Wno-unused-imports
+               -Wno-unused-do-bind
+
+package ouroboros-consensus-lmdb
+  ghc-options: -Wno-redundant-constraints
+
+-- kes-agent on branch f-f/allow-crypto-class-2.5
+source-repository-package
+  type: git
+  location: https://github.com/f-f/kes-agent.git
+  tag: 0b362519f6915841c92869ed288ce83f89b17b73
+  --sha256: sha256-8pZYF7MJZZ1tM19wIUhbLKORDL+OP2ckhueWJM4aG/c=
+  subdir:
+    kes-agent
+    kes-agent-crypto
+
+-- cardano-ledger on branch nm/predicate-failure-ord
+source-repository-package
+  type: git
+  location: https://github.com/IntersectMBO/cardano-ledger.git
+  tag: 3f879bb37df4738ed8211e500c7d180443cfcbe4
+  --sha256: sha256-uLjiIHiU1SzAmoKs+rynQphc3FUYXKeJLlOnp87uNdg=
+  subdir:
+    eras/allegra/impl
+    eras/alonzo/impl
+    eras/babbage/impl
+    eras/byron/chain/executable-spec
+    eras/byron/crypto
+    eras/byron/ledger/executable-spec
+    eras/byron/ledger/impl
+    eras/conway/impl
+    eras/dijkstra/impl
+    eras/mary/impl
+    eras/shelley/impl
+    eras/shelley/test-suite
+    eras/shelley-ma/test-suite
+    libs/cardano-data
+    libs/cardano-ledger-api
+    libs/cardano-ledger-binary
+    libs/cardano-ledger-core
+    libs/cardano-protocol-tpraos
+    libs/non-integral
+    libs/small-steps
+    libs/vector-map
+
+source-repository-package
+  type: git
+  location: https://github.com/avieth/contra-tracer.git
+  tag: bf4a562a3b1315946aca7f6b4935e94ca1a23aa9
+
+source-repository-package
+  type: git
+  location: https://github.com/input-output-hk/cuddle.git
+  tag: 93d8c1d0c7259df2f520524ccae71818537922d5

@@ -1,0 +1,30 @@
+[submodule "ouroboros-consensus"]
+	path = ouroboros-consensus
+	url = https://github.com/tweag/ouroboros-consensus.git
+[submodule "ouroboros-network"]
+	path = ouroboros-network
+	url = https://github.com/tweag/ouroboros-network.git
+[submodule "typed-protocols"]
+	path = typed-protocols
+	url = https://github.com/input-output-hk/typed-protocols.git
+[submodule "ekg-forward"]
+	path = ekg-forward
+	url = https://github.com/tweag/ekg-forward.git
+[submodule "hermod-tracing"]
+	path = hermod-tracing
+	url = https://github.com/IntersectMBO/hermod-tracing.git
+[submodule "cardano-api"]
+	path = cardano-api
+	url = https://github.com/tweag/cardano-api.git
+[submodule "cardano-cli"]
+	path = cardano-cli
+	url = https://github.com/IntersectMBO/cardano-cli.git
+[submodule "dmq-node"]
+	path = dmq-node
+	url = git@github.com:tweag/dmq-node.git
+[submodule "cardano-base"]
+	path = cardano-base
+	url = git@github.com:IntersectMBO/cardano-base.git
+[submodule "plutus"]
+	path = plutus
+	url = git@github.com:IntersectMBO/plutus.git
