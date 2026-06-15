@@ -22,3 +22,9 @@
 [submodule "dmq-node"]
 	path = dmq-node
 	url = git@github.com:tweag/dmq-node.git
+[submodule "cardano-base"]
+	path = cardano-base
+	url = git@github.com:IntersectMBO/cardano-base.git
+[submodule "plutus"]
+	path = plutus
+	url = git@github.com:IntersectMBO/plutus.git

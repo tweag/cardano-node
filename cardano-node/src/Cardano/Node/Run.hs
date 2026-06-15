@@ -486,8 +486,8 @@ handleSimpleNode blockType runP tracers nc networkMagic onKernel = do
     rpcConfigVar <- newTVarIO (ncRpcConfig nc)
 
     let nodeArgs = RunNodeArgs
-          { rnNodeSocketPath = unFile <$> ncSocketPath (ncSocketConfig nc)
-          , rnGenesisConfig  = ncGenesisConfig nc
+          -- { rnNodeSocketPath = unFile <$> ncSocketPath (ncSocketConfig nc)
+          { rnGenesisConfig  = ncGenesisConfig nc
           , rnTraceConsensus = consensusTracers tracers
           , rnTraceNTN       = nodeToNodeTracers tracers
           , rnTraceNTC       = nodeToClientTracers tracers
