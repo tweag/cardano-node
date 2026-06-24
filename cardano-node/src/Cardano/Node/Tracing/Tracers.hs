@@ -66,6 +66,8 @@ import           Network.Mux.Trace (TraceLabelPeer (..))
 import qualified Network.Mux.Trace as Mux
 import           Network.Mux.Tracing ()
 
+import Ouroboros.Consensus.Block.SupportsPeras (PerasError)
+
 
 -- | Construct tracers for all system components.
 --
@@ -78,6 +80,7 @@ mkDispatchTracers
     (TraceLabelPeer
       (ConnectionId RemoteAddress) (TraceChainSyncClientEvent blk))
   , LogFormatting (TraceGsmEvent (Tip blk))
+  , LogFormatting (PerasError blk)
   , MetaTrace (TraceGsmEvent (Tip blk))
   , ToJSON (HeaderHash blk)
   )
@@ -201,6 +204,7 @@ mkConsensusTracers :: forall blk.
   , LogFormatting (TraceLabelPeer
                     (ConnectionId RemoteAddress) (TraceChainSyncClientEvent blk))
   , LogFormatting (TraceGsmEvent (Tip blk))
+  , LogFormatting (PerasError blk)
   , MetaTrace (TraceGsmEvent (Tip blk))
   , ToJSON (HeaderHash blk)
   )
@@ -357,6 +361,7 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
     !txPerasCertOut <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Cert", "Outbound"]
     !txPerasVoteIn <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Vote", "Inbound"]
     !txPerasVoteOut <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Vote", "Outbound"]
+    !txPerasCertInclusion <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Cert", "Inclusion"]
 
 
     configureTracers configReflection trConfig [txCountersTracer]
@@ -417,6 +422,7 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
       , Consensus.perasCertDiffusionOutboundTracer = mkTracer $ traceWith txPerasCertOut
       , Consensus.perasVoteDiffusionInboundTracer = mkTracer $ traceWith txPerasVoteIn
       , Consensus.perasVoteDiffusionOutboundTracer = mkTracer $ traceWith txPerasVoteOut
+      , Consensus.perasCertInclusionTracer = mkTracer $ traceWith txPerasCertInclusion
       }
 
 mkNodeToClientTracers :: forall blk.
