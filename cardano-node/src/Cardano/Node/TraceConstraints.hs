@@ -33,6 +33,8 @@ import           Data.Aeson
 import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Set
 
+import Ouroboros.Consensus.Block.SupportsPeras (PerasError)
+
 -- | Tracing-related constraints for monitoring purposes.
 type TraceConstraints blk =
     ( ConvertTxId blk
@@ -48,6 +50,7 @@ type TraceConstraints blk =
 
     , ToJSON (HeaderHash blk)
 
+    , LogFormatting (PerasError blk)
     , LogFormatting (ApplyTxErr blk)
     , LogFormatting (GenTx blk)
     , LogFormatting (Header blk)

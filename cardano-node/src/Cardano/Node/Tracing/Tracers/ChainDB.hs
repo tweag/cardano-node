@@ -68,6 +68,10 @@ import           Data.Void (absurd)
 import           Data.Word (Word64)
 import           Numeric (showFFloat)
 
+import qualified Ouroboros.Consensus.Peras.Error.V1 as PerasV1
+import qualified Ouroboros.Consensus.Peras.Context as PerasContext
+import qualified Ouroboros.Consensus.Peras.Cert.Inclusion.Trace as Peras
+
 -- {-# ANN module ("HLint: ignore Redundant bracket" :: Text) #-}
 
 -- A limiter that is not coming from configuration, because it carries a special filter
@@ -101,6 +105,8 @@ instance (  LogFormatting (Header blk)
           , InspectLedger blk
           , HasIssuer blk
           , LogFormatting (ReasonForSwitch (TiebreakerView (BlockProtocol blk)))
+          , Show (PerasError blk)
+          , Show (PerasCert blk)
           ) => LogFormatting (ChainDB.TraceEvent blk) where
   forHuman ChainDB.TraceLastShutdownUnclean        =
     "ChainDB is not clean. Validating all immutable chunks"
@@ -517,6 +523,7 @@ instance ( LogFormatting (Header blk)
          , LedgerSupportsProtocol blk
          , InspectLedger blk
          , HasIssuer blk
+         , Show (PerasError blk)
          ) => LogFormatting (ChainDB.TraceAddBlockEvent blk) where
   forHuman (ChainDB.IgnoreBlockOlderThanImmTip pt) =
     "Ignoring block older than ImmTip: " <> renderRealPointAsPhrase pt
@@ -1187,7 +1194,9 @@ instance MetaTrace (ChainDB.TraceGCEvent blk) where
 -- -- TraceInitChainSelEvent
 -- --------------------------------------------------------------------------------
 
-instance (ConvertRawHash blk, ConvertRawHash (Header blk), LedgerSupportsProtocol blk)
+instance ( ConvertRawHash blk, ConvertRawHash (Header blk), LedgerSupportsProtocol blk
+         , Show (PerasError blk)
+         )
   => LogFormatting (ChainDB.TraceInitChainSelEvent blk) where
     forHuman (ChainDB.InitChainSelValidation v) = forHuman v
     forHuman ChainDB.InitialChainSelected{} =
@@ -1270,7 +1279,9 @@ instance MetaTrace (ChainDB.TraceInitChainSelEvent blk) where
 instance ( LedgerSupportsProtocol blk
          , ConvertRawHash (Header blk)
          , ConvertRawHash blk
-         , LogFormatting (RealPoint blk))
+         , LogFormatting (RealPoint blk)
+         , Show (PerasError blk)
+         )
          => LogFormatting (ChainDB.TraceValidationEvent blk) where
     forHuman (ChainDB.InvalidBlock err pt) =
         "Invalid block " <> renderRealPointAsPhrase pt <> ": " <> showT err
@@ -1668,7 +1679,7 @@ instance MetaTrace (PerasVoteDB.TraceEvent blk) where
   documentFor (Namespace _ ["GarbageCollected"]) = Just "GarbageCollected"
   documentFor _ = Nothing
 
-instance StandardHash blk => LogFormatting (PerasVoteDB.TraceEvent blk) where
+instance (Show (PerasCert blk)) => LogFormatting (PerasVoteDB.TraceEvent blk) where
   forHuman (PerasVoteDB.AddVote voteId _vote result) =
     "Peras vote " <> Text.pack (show voteId) <> ": " <> Text.pack (show result)
   forHuman (PerasVoteDB.GarbageCollected slotNo) =
@@ -1720,6 +1731,17 @@ instance LogFormatting (PerasCertDB.TraceEvent blk) where
 
   asMetrics _ = []
 
+instance LogFormatting PerasContext.PerasEpochContextNotFoundForRound where
+  forHuman (PerasContext.PerasEpochContextNotFoundForRound roundNo result) =
+    "PerasEpochContextNotFoundForRound" <> Text.pack (show roundNo) <> ": " <> Text.pack (show result)
+
+  forMachine _dtal (PerasContext.PerasEpochContextNotFoundForRound roundNo result) =
+    mconcat [ "kind" .= String "PerasEpochContextNotFoundForRound"
+            , "round" .= String (Text.pack $ show roundNo)
+            , "result" .= String (Text.pack $ show result)
+            ]
+
+  asMetrics _ = []
 
 -- --------------------------------------------------------------------------------
 -- -- LedgerDB.TraceEvent
@@ -2869,18 +2891,123 @@ instance ( StandardHash blk
   forMachine dtal (OtherHeaderEnvelopeError err) =
     forMachine dtal err
 
+instance LogFormatting (Peras.TracePerasCertInclusionEvent) where
+  forMachine _dtal (Peras.TracePerasCertInclusionNoCertToInclude slotNo) =
+    mconcat
+      [ "kind" .= String "TracePerasCertInclusionNoCertToInclude"
+      , "slotNo" .= condense slotNo
+      ]
+  forMachine _dtal (Peras.TracePerasCertInclusionShouldIncludeCert reason slotNo roundNo cert) =
+    mconcat
+      [ "kind" .= String "TracePerasCertInclusionShouldIncludeCert"
+      , "reason" .= String (Text.pack reason)
+      , "slotNo" .= condense slotNo
+      , "roundNo" .= condense roundNo
+      , "certificate" .= String (Text.pack $ show cert)
+      ]
+  forMachine _dtal (Peras.TracePerasCertInclusionShouldNotIncludeCert reason slotNo) =
+    mconcat
+      [ "kind" .= String "TracePerasCertInclusionShouldNotIncludeCert"
+      , "reason" .= String (Text.pack reason)
+      , "slotNo" .= condense slotNo
+      ]
+  forMachine _dtal (Peras.TracePerasCertInclusionFailedToConstructOpaqueCert reason slotNo roundNo err) =
+    mconcat
+      [ "kind" .= String "TracePerasCertInclusionFailedToConstructOpaqueCert"
+      , "reason" .= String (Text.pack reason)
+      , "slotNo" .= condense slotNo
+      , "roundNo" .= condense roundNo
+      , "error" .= String (Text.pack $ show err)
+      ]
+
+instance MetaTrace Peras.TracePerasCertInclusionEvent where
+    namespaceFor Peras.TracePerasCertInclusionNoCertToInclude {} =
+      Namespace [] ["NoCertToInclude"]
+    namespaceFor Peras.TracePerasCertInclusionShouldIncludeCert {} =
+      Namespace [] ["ShouldIncludeCert"]
+    namespaceFor Peras.TracePerasCertInclusionShouldNotIncludeCert {} =
+      Namespace [] ["ShouldNotIncludeCert"]
+    namespaceFor Peras.TracePerasCertInclusionFailedToConstructOpaqueCert {} =
+      Namespace [] ["FailedToConstructOpaqueCert"]
+
+    severityFor (Namespace _ ["NoCertToInclude"]) _ = Just Debug
+    severityFor (Namespace _ ["ShouldIncludeCert"]) _ = Just Debug
+    severityFor (Namespace _ ["ShouldNotIncludeCert"]) _ = Just Debug
+    severityFor (Namespace _ ["FailedToConstructOpaqueCert"]) _ = Just Error
+    severityFor _ _ = Nothing
+
+    documentFor (Namespace _ ["NoCertToInclude"]) =
+      Just "There is no latest seen certificate, so there is no certificate to possibly include in a block."
+    documentFor (Namespace _ ["ShouldIncludeCert"]) =
+      Just "A certificate needs to be included in a block."
+    documentFor (Namespace _ ["ShouldNotIncludeCert"]) =
+      Just "A certificate does not need to be included in a block."
+    documentFor (Namespace _ ["FailedToConstructOpaqueCert"]) =
+      Just "Failed to construct an opaque Peras certificate."
+    documentFor _ = Nothing
+
+    metricsDocFor (Namespace _ ["NoCertToInclude"]) =
+      [ ("peras.certInclusion.noCertToInclude", "Number of slots with no certificate to include") ]
+    metricsDocFor (Namespace _ ["ShouldIncludeCert"]) =
+      [ ("peras.certInclusion.shouldIncludeCert", "Number of certificates included in blocks") ]
+    metricsDocFor (Namespace _ ["ShouldNotIncludeCert"]) =
+      [ ("peras.certInclusion.shouldNotIncludeCert", "Number of certificates not included") ]
+    metricsDocFor (Namespace _ ["FailedToConstructOpaqueCert"]) =
+      [ ("peras.certInclusion.failedToConstruct", "Number of failures to construct opaque certificates") ]
+    metricsDocFor _ = []
+
+    allNamespaces = [
+        Namespace [] ["NoCertToInclude"]
+      , Namespace [] ["ShouldIncludeCert"]
+      , Namespace [] ["ShouldNotIncludeCert"]
+      , Namespace [] ["FailedToConstructOpaqueCert"]
+      ]
+
+instance LogFormatting (PerasV1.PerasError blk) where
+  forMachine _dtal (PerasV1.PerasVotingWFAError err) =
+    mconcat
+      [ "kind" .= String "PerasVotingWFAError"
+      , "error" .= String (Text.pack $ show err)
+      ]
+  forMachine _dtal (PerasV1.PerasVotingCommitteeError _err) =
+    mconcat
+      [ "kind" .= String "PerasVotingCommitteeError"
+      ]
+  forMachine _dtal (PerasV1.PerasVotingConversionError err) =
+    mconcat
+      [ "kind" .= String "PerasVotingConversionError"
+      , "error" .= String (Text.pack $ show err)
+      ]
+  forMachine _dtal (PerasV1.PerasQuorumNotReachedError weight) =
+    mconcat
+      [ "kind" .= String "PerasQuorumNotReachedError"
+      , "weight" .= Text.pack (show weight)
+      ]
+  forMachine _dtal (PerasV1.PerasTemporaryPublicKeyHackError msg) =
+    mconcat
+      [ "kind" .= String "PerasTemporaryPublicKeyHackError"
+      , "message" .= String (Text.pack msg)
+      ]
+
 
 instance (   LogFormatting (LedgerError blk)
-           , LogFormatting (HeaderError blk))
+           , LogFormatting (HeaderError blk)
+           , LogFormatting (PerasError blk))
         => LogFormatting (ExtValidationError blk) where
     forMachine dtal (ExtValidationErrorLedger err) = forMachine dtal err
     forMachine dtal (ExtValidationErrorHeader err) = forMachine dtal err
+    forMachine dtal (ExtValidationErrorPerasEpochContextResolver err) = forMachine dtal err
+    forMachine dtal (ExtValidationErrorPerasCertInBlock err) = forMachine dtal err
 
     forHuman (ExtValidationErrorLedger err) =  forHuman err
     forHuman (ExtValidationErrorHeader err) =  forHuman err
+    forHuman (ExtValidationErrorPerasEpochContextResolver err) = forHuman err
+    forHuman (ExtValidationErrorPerasCertInBlock err) = forHuman err
 
     asMetrics (ExtValidationErrorLedger err) =  asMetrics err
     asMetrics (ExtValidationErrorHeader err) =  asMetrics err
+    asMetrics (ExtValidationErrorPerasEpochContextResolver err) = asMetrics err
+    asMetrics (ExtValidationErrorPerasCertInBlock err) = asMetrics err
 
 instance (Show (PBFT.PBftVerKeyHash c))
       => LogFormatting (PBFT.PBftValidationErr c) where

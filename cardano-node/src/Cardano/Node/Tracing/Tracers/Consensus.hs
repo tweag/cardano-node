@@ -1312,6 +1312,7 @@ instance ( tx ~ GenTx blk
          , Show (ForgeStateUpdateError blk)
          , Show (CannotForge blk)
          , Show (TxId (GenTx blk))
+         , Show (PerasError blk)
          , LogFormatting (CannotForge blk)
          , LogFormatting (ExtValidationError blk)
          , LogFormatting (ForgeStateUpdateError blk))
