@@ -362,6 +362,7 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
     !txPerasVoteIn <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Vote", "Inbound"]
     !txPerasVoteOut <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Vote", "Outbound"]
     !txPerasCertInclusion <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Cert", "Inclusion"]
+    !txPerasVoteForging <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Vote", "Forging"]
 
 
     configureTracers configReflection trConfig [txCountersTracer]
@@ -423,6 +424,7 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
       , Consensus.perasVoteDiffusionInboundTracer = mkTracer $ traceWith txPerasVoteIn
       , Consensus.perasVoteDiffusionOutboundTracer = mkTracer $ traceWith txPerasVoteOut
       , Consensus.perasCertInclusionTracer = mkTracer $ traceWith txPerasCertInclusion
+      , Consensus.perasVoteForgingTracer = mkTracer $ traceWith txPerasVoteForging
       }
 
 mkNodeToClientTracers :: forall blk.

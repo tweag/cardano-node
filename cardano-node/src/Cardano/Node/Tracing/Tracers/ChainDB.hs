@@ -71,6 +71,7 @@ import           Numeric (showFFloat)
 import qualified Ouroboros.Consensus.Peras.Error.V1 as PerasV1
 import qualified Ouroboros.Consensus.Peras.Context as PerasContext
 import qualified Ouroboros.Consensus.Peras.Cert.Inclusion.Trace as Peras
+import qualified Ouroboros.Consensus.Peras.Voting.Trace as Peras
 
 -- {-# ANN module ("HLint: ignore Redundant bracket" :: Text) #-}
 
@@ -2918,6 +2919,52 @@ instance LogFormatting (Peras.TracePerasCertInclusionEvent) where
       , "slotNo" .= condense slotNo
       , "roundNo" .= condense roundNo
       , "error" .= String (Text.pack $ show err)
+      ]
+
+instance LogFormatting (Peras.TracePerasVoteForgingEvent blk) where
+  forMachine _dtal (Peras.TracePerasVotingRuleEvent {}) =
+      "kind" .= String "TracePerasVotingRuleEvent"
+  forMachine _dtal (Peras.TracePerasVotingNoVoteAfterFirstSlotInRound {}) =
+      "kind" .= String "TracePerasVotingNoVoteAfterFirstSlotInRound"
+  forMachine _dtal (Peras.TracePerasVotingNotAVoterInRound {}) =
+      "kind" .= String "TracePerasVotingNotAVoterInRound"
+  forMachine _dtal (Peras.TracePerasVotingForgedVote {}) =
+      "kind" .= String "TracePerasVotingForgedVote"
+  forMachine _dtal (Peras.TracePerasVotingAddVoteResult {}) =
+      "kind" .= String "TracePerasVotingAddVoteResult"
+  forMachine _dtal (Peras.TracePerasVotingAddCertChainSelOutcome {}) =
+      "kind" .= String "TracePerasVotingAddCertChainSelOutcome"
+  forMachine _dtal (Peras.TracePerasVotingCantReadEnv {}) =
+      "kind" .= String "TracePerasVotingCantReadEnv"
+
+instance MetaTrace (Peras.TracePerasVoteForgingEvent blk) where
+    namespaceFor (Peras.TracePerasVotingRuleEvent {}) =
+        Namespace [] ["VotingRuleEvent"]
+    namespaceFor (Peras.TracePerasVotingNoVoteAfterFirstSlotInRound {}) =
+        Namespace [] ["VotingNoVoteAfterFirstSlotInRound"]
+    namespaceFor (Peras.TracePerasVotingNotAVoterInRound {}) =
+        Namespace [] ["VotingNotAVoterInRound"]
+    namespaceFor (Peras.TracePerasVotingForgedVote {}) =
+        Namespace [] ["VotingForgedVote"]
+    namespaceFor (Peras.TracePerasVotingAddVoteResult {}) =
+        Namespace [] ["VotingAddVoteResult"]
+    namespaceFor (Peras.TracePerasVotingAddCertChainSelOutcome {}) =
+        Namespace [] ["VotingAddCertChainSelOutcome"]
+    namespaceFor (Peras.TracePerasVotingCantReadEnv {}) =
+        Namespace [] ["VotingCantReadEnv"]
+
+    severityFor _ _ = Just Info
+    documentFor _ = Nothing
+    metricsDocFor _ = []
+
+    allNamespaces =
+      [ Namespace [] ["VotingRuleEvent"]
+      , Namespace [] ["VotingNoVoteAfterFirstSlotInRound"]
+      , Namespace [] ["VotingNotAVoterInRound"]
+      , Namespace [] ["VotingForgedVote"]
+      , Namespace [] ["VotingAddVoteResult"]
+      , Namespace [] ["VotingAddCertChainSelOutcome"]
+      , Namespace [] ["VotingCantReadEnv"]
       ]
 
 instance MetaTrace Peras.TracePerasCertInclusionEvent where
