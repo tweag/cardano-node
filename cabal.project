@@ -88,13 +88,13 @@ allow-newer:
 
 
 source-repository-package
-  type: git
-  location: https://github.com/IntersectMBO/cardano-api.git
-  tag: 482c821260776590a24ec1a0c90c555becdc93c9
-  --sha256: sha256-rue+RXlNAHpnupVafgE4mTIbgoxixe39rp0jnsvLJqM=
-  subdir:
-    cardano-api
-    cardano-rpc
+   type: git
+   location: https://github.com/tweag/cardano-api.git
+   tag: 4630cb635945bdf9556c0f2d4bce59687097a8aa
+   --sha256: sha256-rue+RXlNAHpnupVafgE4mTIbgoxixe39rp0jnsvLJqM=
+   subdir:
+     cardano-api
+     cardano-rpc
 
 source-repository-package
   type: git
@@ -104,11 +104,12 @@ source-repository-package
   subdir:
     cardano-cli
 
+-- cardano-ledger on master 2026-06-30
 source-repository-package
   type: git
   location: https://github.com/IntersectMBO/cardano-ledger.git
-  tag: 245e63dcd335e3ca29823609e4aaa8f5f096a425
-  --sha256: sha256-chsapfNnY/V7y1snBzjP0LSVnYl/Axt6GjahTPNOKj0=
+  tag: 5399cc5f2f22e9ebd1f1326813b51e208794af21
+  --sha256: sha256-KNsv/ryAZoxip8UGCvbkI7ThHqnXYpjDlk3pXrSiKU8=
   subdir:
     eras/allegra/impl
     eras/alonzo/impl
@@ -120,13 +121,14 @@ source-repository-package
     eras/conway/impl
     eras/dijkstra/impl
     eras/mary/impl
-    eras/shelley-ma/test-suite
     eras/shelley/impl
     eras/shelley/test-suite
+    eras/shelley-ma/test-suite
     libs/cardano-data
     libs/cardano-ledger-api
     libs/cardano-ledger-binary
     libs/cardano-ledger-core
+    libs/cardano-protocol
     libs/cardano-protocol-tpraos
     libs/non-integral
     libs/small-steps
@@ -143,9 +145,9 @@ source-repository-package
 
 source-repository-package
   type: git
-  location: https://github.com/IntersectMBO/ouroboros-consensus.git
-  tag: e37ba209ffdbdcb3cc8e7a9cb0fb6d6fa7cce8a3
-  --sha256: sha256-srdli4YUIo3HtdWwpk2Tq5okk4GQ5Fpn/ipFO8eykVU=
+  location: https://github.com/tweag/ouroboros-consensus.git
+  tag: 57948a565796c711b428e51578e9391ad2749199
+  --sha256: sha256-xiF5vjbS9DnHIDPmzUHj4ojWk4Rsw9WlyrVAezPsJXE=
   subdir:
     .
 
@@ -163,7 +165,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/f-f/dmq-node.git
-  tag: 6c0b5f5752c8e0700cd642a7d45475c1c3da8e05
+  tag: 785e385f0fd9495b66b90016bbe6d5110fd8c8c4
   --sha256: sha256-lOsYFjr8DpBVVCQzMqsUAezNvXm69S6LK9lBqsv6Cxw=
   subdir:
     dmq-node

@@ -167,6 +167,8 @@ import           System.Win32.File
 import           Ouroboros.Consensus.Mempool (MempoolTimeoutConfig(..))
 import           GHC.Stack
 
+import Data.IORef (newIORef)
+
 {- HLINT ignore "Fuse concatMap/map" -}
 {- HLINT ignore "Redundant <$>" -}
 {- HLINT ignore "Use fewer imports" -}
@@ -767,20 +769,23 @@ rpcServerLoop :: Tracer IO (StartupTrace blk)
               -> StrictTVar IO RpcConfig
               -> NetworkMagic
               -> IO ()
-rpcServerLoop startupTracer rpcTracer rpcConfigVar networkMagic = go
+rpcServerLoop startupTracer rpcTracer rpcConfigVar networkMagic = do
+    -- TODO: Validate and fix if required.
+    nodeKernelAccessRef <- newIORef Nothing
+    go nodeKernelAccessRef
   where
-    go = do
+    go nodeKernelAccessRef = do
       config@RpcConfig{isEnabled = Identity enabled} <- readTVarIO rpcConfigVar
       if enabled
         then
           race_
             (do
-              runRpcServer rpcTracer (config, networkMagic)
+              runRpcServer rpcTracer config networkMagic nodeKernelAccessRef
               traceWith startupTracer RpcForceDisabled
               disableRpcServer)
             (waitForRpcConfigChange config)
         else waitForRpcConfigChange config
-      go
+      go nodeKernelAccessRef
 
     waitForRpcConfigChange oldConfig =
       atomically $ readTVar rpcConfigVar >>= \new -> check (new /= oldConfig)

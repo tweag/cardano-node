@@ -24,6 +24,7 @@ instance LogFormatting TraceRpc where
         : case tr of
           TraceRpcFatalError _ -> ["kind" .= String "FatalError"]
           TraceRpcError _ -> ["kind" .= String "Error"]
+          TraceRpcSync _ -> ["kind" .= String "SyncService"]
           TraceRpcQuery queryTrace ->
             ["kind" .= String "QueryService"]
               <> case queryTrace of
@@ -66,6 +67,7 @@ instance MetaTrace TraceRpc where
     Namespace [] . \case
       TraceRpcFatalError _ -> ["FatalError"]
       TraceRpcError _ -> ["Error"]
+      TraceRpcSync _ -> ["Sync"]
       TraceRpcQuery queryTrace ->
         "QueryService"
           : case queryTrace of
