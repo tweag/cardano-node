@@ -91,7 +91,7 @@ source-repository-package
    type: git
    location: https://github.com/tweag/cardano-api.git
    tag: 4630cb635945bdf9556c0f2d4bce59687097a8aa
-   --sha256: sha256-rue+RXlNAHpnupVafgE4mTIbgoxixe39rp0jnsvLJqM=
+   --sha256: sha256-CN4LNF713YODNzMSNoPNSJe3WcxYg8LpBX7yZsNytKs=
    subdir:
      cardano-api
      cardano-rpc
@@ -147,7 +147,7 @@ source-repository-package
   type: git
   location: https://github.com/tweag/ouroboros-consensus.git
   tag: 57948a565796c711b428e51578e9391ad2749199
-  --sha256: sha256-xiF5vjbS9DnHIDPmzUHj4ojWk4Rsw9WlyrVAezPsJXE=
+  --sha256: sha256-zBgyou/pT+itNlwK53/tAejoSiNKX5x85Tx9EZsXEyU=
   subdir:
     .
 
@@ -166,7 +166,7 @@ source-repository-package
   type: git
   location: https://github.com/f-f/dmq-node.git
   tag: 785e385f0fd9495b66b90016bbe6d5110fd8c8c4
-  --sha256: sha256-lOsYFjr8DpBVVCQzMqsUAezNvXm69S6LK9lBqsv6Cxw=
+  --sha256: sha256-pMU7fiWDs8mHb5F66hs7jVTbXEJYA2O20xQFGRk/WWw=
   subdir:
     dmq-node
 
