@@ -106,6 +106,7 @@ source-repository-package
   subdir:
     cardano-cli
 
+-- cardano-ledger on master 2026-06-30
 source-repository-package
   type: git
   location: https://github.com/IntersectMBO/cardano-ledger.git
@@ -122,9 +123,9 @@ source-repository-package
     eras/conway/impl
     eras/dijkstra/impl
     eras/mary/impl
-    eras/shelley-ma/test-suite
     eras/shelley/impl
     eras/shelley/test-suite
+    eras/shelley-ma/test-suite
     libs/cardano-data
     libs/cardano-ledger-api
     libs/cardano-ledger-binary

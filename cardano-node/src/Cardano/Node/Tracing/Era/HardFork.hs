@@ -28,7 +28,7 @@ import           Ouroboros.Consensus.HardFork.Combinator.AcrossEras (EraMismatch
                    OneEraCannotForge (..), OneEraEnvelopeErr (..), OneEraForgeStateInfo (..),
                    OneEraForgeStateUpdateError (..), OneEraLedgerError (..),
                    OneEraLedgerUpdate (..), OneEraLedgerWarning (..), OneEraTiebreakerView (..),
-                   OneEraValidationErr (..), mkEraMismatch)
+                   OneEraValidationErr (..), mkEraMismatch, HardForkPerasError (..))
 import           Ouroboros.Consensus.HardFork.Combinator.Condense ()
 import           Ouroboros.Consensus.HardFork.History
                    (EraParams (eraEpochSize, eraSafeZone, eraSlotLength), SafeZone)
@@ -370,3 +370,11 @@ instance All (LogFormatting `Compose` WrapTiebreakerView) xs => LogFormatting (O
 
 instance LogFormatting (TiebreakerView (BlockProtocol blk)) => LogFormatting (WrapTiebreakerView blk) where
   forMachine dtal  = forMachine dtal  . unwrapTiebreakerView
+
+-- TODO: FIXME
+instance LogFormatting (HardForkPerasError xs) where
+  forMachine _ _ =
+    mconcat
+      [ "kind" .= String "HardForkPerasError"
+      -- , "value" .= String (Text.pack (show val))
+      ]

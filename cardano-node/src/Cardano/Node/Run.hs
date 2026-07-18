@@ -168,6 +168,8 @@ import           System.Win32.File
 import           Ouroboros.Consensus.Mempool (MempoolTimeoutConfig(..))
 import           GHC.Stack
 
+import Data.IORef (newIORef)
+
 {- HLINT ignore "Fuse concatMap/map" -}
 {- HLINT ignore "Redundant <$>" -}
 {- HLINT ignore "Use fewer imports" -}
@@ -779,7 +781,7 @@ rpcServerLoop startupTracer rpcTracer rpcConfigVar networkMagic nodeKernelAccess
         then
           race_
             (do
-              runRpcServer rpcTracer config networkMagic nodeKernelAccessRef
+              runRpcServer rpcTracer config networkMagic
               traceWith startupTracer RpcForceDisabled
               disableRpcServer)
             (waitForRpcConfigChange config)
