@@ -410,6 +410,8 @@ npcTestStartingEra NodeHardForkProtocolConfiguration
   , npcTestBabbageHardForkAtVersion
   , npcTestConwayHardForkAtEpoch
   , npcTestConwayHardForkAtVersion
+  , npcTestDijkstraHardForkAtEpoch
+  , npcTestDijkstraHardForkAtVersion
   } =
     getLast . mconcat $
       [ checkIfInstantFork ShelleyBasedEraShelley (EpochNo 0) npcTestShelleyHardForkAtEpoch
@@ -424,6 +426,8 @@ npcTestStartingEra NodeHardForkProtocolConfiguration
       , checkIfInstantFork ShelleyBasedEraBabbage 0 npcTestBabbageHardForkAtVersion
       , checkIfInstantFork ShelleyBasedEraConway (EpochNo 0) npcTestConwayHardForkAtEpoch
       , checkIfInstantFork ShelleyBasedEraConway 0 npcTestConwayHardForkAtVersion
+      , checkIfInstantFork ShelleyBasedEraDijkstra (EpochNo 0) npcTestDijkstraHardForkAtEpoch
+      , checkIfInstantFork ShelleyBasedEraDijkstra 0 npcTestDijkstraHardForkAtVersion
       ]
   where
     checkIfInstantFork :: Typeable era
