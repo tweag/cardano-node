@@ -186,6 +186,6 @@ source-repository-package
 
 source-repository-package
   type: git
-  location: https://github.com/f-f/ekg-forward
-  tag: b24b3aba2806ce223c62f8ce3e267ec92dcc52e2
+  location: https://github.com/tweag/ekg-forward.git
+  tag: 984f578abd333600eeee6e276dc7a13ed58a804a
   --sha256: sha256-s5Hxxm04HmFVmdBjAnFEsJEhTqr5Z/uiB4K1s2VaVwE=
