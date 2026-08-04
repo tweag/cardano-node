@@ -32,6 +32,9 @@ constraints:
 package acts
   flags: -finitary
 
+package cardano-api
+  ghc-options: -XUndecidableSuperClasses
+
 packages:
   cardano-node
   cardano-node-capi
