@@ -232,7 +232,7 @@ data TestnetRuntimeOptions = TestnetRuntimeOptions
 
 instance Default TestnetRuntimeOptions where
   def = TestnetRuntimeOptions
-    { runtimeEnableNewEpochStateLogging = True
+    { runtimeEnableNewEpochStateLogging = False
     , runtimeEnableRpc = RpcDisabled
     , runtimeEnableTracer = TraceDisabled
     , runtimeKESSource = def

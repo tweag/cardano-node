@@ -225,10 +225,6 @@ let
             #  export PROXY_ARGS=-v
             #'';
 
-            # Tests broken under Wine: System.IO.Temp file operations fail
-            packages.cardano-profile.components.tests.cardano-profile-test.buildable = lib.mkForce false;
-            packages.cardano-topology.components.tests.cardano-topology-test.buildable = lib.mkForce false;
-            packages.trace-schema-gen.components.tests.trace-schema-gen-test.buildable = lib.mkForce false;
           })
           ({ lib, pkgs, config, ... }: lib.mkIf (builtins.compareVersions config.compiler.version "9.4" >= 0) {
             # lib:ghc is a bit annoying in that it comes with it's own build-type:Custom, and then tries
