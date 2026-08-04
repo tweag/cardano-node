@@ -1139,7 +1139,7 @@ instance
           .= map
             ( \(tx, err) ->
                 Aeson.object $
-                  [ "tx" .= forMachine dtal (txForgetValidated tx)
+                  [ "tx" .= forMachine dtal tx
                   ] <>
                   [ "err" .= forMachine dtal err
                   | dtal >= DDetailed
@@ -1152,7 +1152,7 @@ instance
     mconcat
       [ "kind" .= String "TraceMempoolManuallyRemovedTxs"
       , "txsRemoved" .= map (String . renderTxIdForDetails dtal) (toList txs0)
-      , "txsInvalidated" .= map (forMachine dtal . txForgetValidated) txs1
+      , "txsInvalidated" .= map (forMachine dtal) txs1
       , "mempoolSize" .= forMachine dtal mpSz
       ]
   forMachine dtal (TraceMempoolSyncNotNeeded t) =

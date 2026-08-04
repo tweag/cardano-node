@@ -781,7 +781,7 @@ rpcServerLoop startupTracer rpcTracer rpcConfigVar networkMagic nodeKernelAccess
         then
           race_
             (do
-              runRpcServer rpcTracer config networkMagic
+              runRpcServer rpcTracer config networkMagic nodeKernelAccessRef
               traceWith startupTracer RpcForceDisabled
               disableRpcServer)
             (waitForRpcConfigChange config)

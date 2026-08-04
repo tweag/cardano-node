@@ -24,7 +24,6 @@ instance LogFormatting TraceRpc where
         : case tr of
           TraceRpcFatalError _ -> ["kind" .= String "FatalError"]
           TraceRpcError _ -> ["kind" .= String "Error"]
-          TraceRpcSync _ -> ["kind" .= String "SyncService"]
           TraceRpcQuery queryTrace ->
             ["kind" .= String "QueryService"]
               <> case queryTrace of
@@ -55,7 +54,8 @@ instance LogFormatting TraceRpc where
                 TraceRpcFetchBlockSpan s -> [spanToObject s]
                 TraceRpcFetchBlockNotFound _ -> []
                 TraceRpcNodeKernelAccessUnavailable -> []
-                TraceRpcForkerError _ -> []
+                TraceRpcReadTipSpan _ -> []
+                TraceRpcFollowTipSpan _ -> []
 
   forHuman = docToText . pretty
 
@@ -75,7 +75,6 @@ instance MetaTrace TraceRpc where
     Namespace [] . \case
       TraceRpcFatalError _ -> ["FatalError"]
       TraceRpcError _ -> ["Error"]
-      TraceRpcSync _ -> ["Sync"]
       TraceRpcQuery queryTrace ->
         "QueryService"
           : case queryTrace of
@@ -97,7 +96,8 @@ instance MetaTrace TraceRpc where
             TraceRpcFetchBlockSpan _ -> ["FetchBlock", "Span"]
             TraceRpcFetchBlockNotFound _ -> ["FetchBlockNotFound"]
             TraceRpcNodeKernelAccessUnavailable -> ["NodeKernelAccessUnavailable"]
-            TraceRpcForkerError _ -> ["ForkerError"]
+            TraceRpcReadTipSpan _ -> ["ReadTipSpan"]
+            TraceRpcFollowTipSpan _ -> ["FollowTipSpan"]
 
   severityFor (Namespace _ nsInner) _ = case nsInner of
     ["FatalError"] -> Just Error -- RPC server startup errors

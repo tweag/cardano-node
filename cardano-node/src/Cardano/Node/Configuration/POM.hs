@@ -9,6 +9,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 {-# OPTIONS_GHC -Wno-noncanonical-monoid-instances #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 {- HLINT ignore "Functor law" -}
 
@@ -49,7 +50,6 @@ import           Ouroboros.Consensus.Storage.LedgerDB.Args (QueryBatchSize (..))
 import           Ouroboros.Consensus.Storage.LedgerDB.Snapshots (NumOfDiskSnapshots (..),
                    SnapshotDelayRange (..), SnapshotFrequency (..), SnapshotFrequencyArgs (..),
                    SnapshotPolicyArgs (..), defaultSnapshotPolicyArgs, mithrilSnapshotPolicyArgs)
-import           Ouroboros.Consensus.Util.Args (OverrideOrDefault (..))
 import           Ouroboros.Network.Diffusion.Configuration as Configuration
 import qualified Ouroboros.Network.Diffusion.Configuration as Ouroboros
 import qualified Ouroboros.Network.Mux as Mux
@@ -486,12 +486,15 @@ instance FromJSON PartialNodeConfiguration where
                 ]
               Nothing -> return Nothing
 
-      parseLedgerDbConfig v = do
+      parseLedgerDbConfig _v = do
+        -- FIXME
+        pure $ Just $ LedgerDbConfiguration defaultSnapshotPolicyArgs DefaultQueryBatchSize V2InMemory (DeprecatedOptions [])
+{-
         let snapInterval x = do
               si <- x .:? "SnapshotInterval"
               when (any (<= 0) si) $ fail $ "Non-positive SnapshotInterval: " <> show si
-              pure $ Override <$> (si >>= nonZero)
-            snapNum x      = fmap (Override . NumOfDiskSnapshots) <$> x .:? "NumOfDiskSnapshots"
+              pure $ (si >>= nonZero)
+            snapNum x      = fmap (NumOfDiskSnapshots) <$> x .:? "NumOfDiskSnapshots"
 
         mTopLevelSnapInterval <- snapInterval v
         mTopLevelSnapNum <- snapNum v
@@ -520,20 +523,20 @@ instance FromJSON PartialNodeConfiguration where
              -- Parse snapshot options from an object, honouring any top-level
              -- (deprecated) SnapshotInterval / NumOfDiskSnapshots overrides.
              let parseSnapshotOpts s = do
-                   sInterval  <- (getLast . (Last mTopLevelSnapInterval <>) . Last <$> snapInterval s) .!= UseDefault
-                   sNum       <- (getLast . (Last mTopLevelSnapNum <>) . Last <$> snapNum s)           .!= UseDefault
-                   sOffset    <- (fmap Override <$> s .:? "SlotOffset") .!= UseDefault
-                   sRateLimit <- (fmap (Override . secondsToDiffTime) <$> s .:? "RateLimit") .!= UseDefault
+                   sInterval  <- (getLast . (Last mTopLevelSnapInterval <>) . Last <$> snapInterval s) .!= useDefault
+                   sNum       <- (getLast . (Last mTopLevelSnapNum <>) . Last <$> snapNum s)           .!= useDefault
+                   sOffset    <- (s .:? "SlotOffset") .!= useDefault
+                   sRateLimit <- (fmap secondsToDiffTime <$> s .:? "RateLimit") .!= useDefault
                    sMinDelay  <- s .:? "MinDelay"
                    sMaxDelay  <- s .:? "MaxDelay"
                    sDelayRange <-
                          case (sMinDelay, sMaxDelay) of
                            (Just minDelay, Just maxDelay) ->
                              if minDelay <= maxDelay then
-                               pure (Override (SnapshotDelayRange (secondsToDiffTime minDelay) (secondsToDiffTime maxDelay)))
+                               pure (SnapshotDelayRange (secondsToDiffTime minDelay) (secondsToDiffTime maxDelay))
                              else fail $ "Invalid ledger snapshot delay range, MinDelay > MaxDelay: "
                                        <> show minDelay <> " > " <> show maxDelay
-                           _ -> pure UseDefault
+                           _ -> pure useDefault
                    let sf = SnapshotFrequencyArgs {
                            sfaInterval = sInterval
                          , sfaOffset = sOffset
@@ -565,6 +568,7 @@ instance FromJSON PartialNodeConfiguration where
                Nothing -> parseSnapshotOpts o
 
              pure $ Just $ LedgerDbConfiguration spArgs qsize selector deprecatedOpts
+-}
 
       parseByronProtocol v = do
         primary   <- v .:? "ByronGenesisFile"

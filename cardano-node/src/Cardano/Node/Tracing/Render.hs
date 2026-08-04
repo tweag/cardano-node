@@ -214,11 +214,13 @@ renderIncompleteWithdrawals payload =
 renderScriptHash :: Ledger.ScriptHash -> Text
 renderScriptHash = Api.serialiseToRawBytesHexText . Api.fromShelleyScriptHash
 
+-- FIXME
 renderScriptPurpose :: ()
   => Api.ShelleyBasedEra era
   -> PlutusPurpose AsItem (Api.ShelleyLedgerEra era)
   -> Aeson.Value
-renderScriptPurpose =
+renderScriptPurpose _ _ = Aeson.Null
+{-
   Api.caseShelleyToMaryOrAlonzoEraOnwards
     (const (const Aeson.Null))
     (\case
@@ -228,12 +230,13 @@ renderScriptPurpose =
       -- TODO: fix
       Api.AlonzoEraOnwardsDijkstra -> undefined
     )
+-}
 
-renderAlonzoPlutusPurpose :: ()
+_renderAlonzoPlutusPurpose :: ()
   => Aeson.ToJSON (Ledger.TxCert era)
   => AlonzoPlutusPurpose AsItem era
   -> Aeson.Value
-renderAlonzoPlutusPurpose = \case
+_renderAlonzoPlutusPurpose = \case
   AlonzoSpending (AsItem txin) ->
     Aeson.object ["spending" .= Api.fromShelleyTxIn txin]
   AlonzoMinting pid ->
@@ -243,11 +246,11 @@ renderAlonzoPlutusPurpose = \case
   AlonzoCertifying cert ->
     Aeson.object ["certifying" .= Aeson.toJSON cert]
 
-renderConwayPlutusPurpose :: ()
+_renderConwayPlutusPurpose :: ()
   => (Ledger.EraPParams era, Aeson.ToJSON (Ledger.TxCert era))
   => ConwayPlutusPurpose AsItem era
   -> Aeson.Value
-renderConwayPlutusPurpose = \case
+_renderConwayPlutusPurpose = \case
   ConwaySpending (AsItem txin) ->
     Aeson.object ["spending" .= Api.fromShelleyTxIn txin]
   ConwayMinting pid ->

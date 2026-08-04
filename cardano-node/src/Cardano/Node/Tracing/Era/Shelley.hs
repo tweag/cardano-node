@@ -410,7 +410,8 @@ instance
              , "disallowed" .= NonEmptySet.toList disallowed
              , "acceptable" .= Set.toList acceptable
              ]
-  forMachine _ (ExtraRedeemers rdmrs) =
+  forMachine _ (ExtraRedeemers _rdmrs) = mempty -- FIXME
+{-
     Api.caseShelleyToMaryOrAlonzoEraOnwards
       (const mempty)
       (\alonzoOnwards ->
@@ -420,6 +421,7 @@ instance
            ]
       )
       (Api.shelleyBasedEra :: Api.ShelleyBasedEra era)
+-}
   forMachine _ (ScriptIntegrityHashMismatch Mismatch {mismatchSupplied, mismatchExpected} mBytes) =
       mconcat [ "kind" .= String "ScriptIntegrityHashMismatch"
               , "supplied" .= renderScriptIntegrityHash (strictMaybeToMaybe mismatchSupplied)
@@ -1545,7 +1547,8 @@ instance
       mconcat [ "kind" .= String "MissingRequiredSigners"
               , "txins" .= NonEmptySet.toList ins
               ]
-    Conway.ExtraRedeemers rs ->
+    Conway.ExtraRedeemers _rs -> mempty -- FIXME
+{-
       Api.caseShelleyToMaryOrAlonzoEraOnwards
         (const mempty)
         (\alonzoOnwards ->
@@ -1555,6 +1558,7 @@ instance
              ]
         )
         (Api.shelleyBasedEra :: Api.ShelleyBasedEra era)
+-}
     Conway.MalformedScriptWitnesses scripts ->
       mconcat [ "kind" .= String "MalformedScriptWitnesses"
               , "scripts" .= scripts
