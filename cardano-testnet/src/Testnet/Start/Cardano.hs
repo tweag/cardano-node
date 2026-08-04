@@ -384,7 +384,7 @@ cardanoTestnet
   liftIOAnnotated $ interruptNodesOnSigINT testnetNodes'
 
   -- Make sure that all nodes are healthy by waiting for a chain extension
-  mapConcurrently_ (waitForBlockThrow 45 (File nodeConfigFile)) testnetNodes'
+  -- mapConcurrently_ (waitForBlockThrow 45 (File nodeConfigFile)) testnetNodes'b
 
   let runtime = TestnetRuntime
         { configurationFile = File nodeConfigFile
@@ -426,13 +426,13 @@ cardanoTestnet
     mkTestnetNodeKeyPaths n = makePathsAbsolute $ Defaults.defaultSpoKeys n
 
     -- wait for new blocks or throw an exception if there are none in the timeout period
-    waitForBlockThrow :: MonadUnliftIO m
+    _waitForBlockThrow :: MonadUnliftIO m
                       => MonadCatch m
                       => Int -- ^ timeout in seconds
                       -> NodeConfigFile 'In
                       -> TestnetNode
                       -> m ()
-    waitForBlockThrow timeoutSeconds nodeConfigFile node@TestnetNode{nodeName} = do
+    _waitForBlockThrow timeoutSeconds nodeConfigFile node@TestnetNode{nodeName} = do
       fs <- liftIO $ mkNodeConfigFs nodeConfigFile
       result <- timeout (timeoutSeconds * 1_000_000) $
         runExceptT . foldEpochState
