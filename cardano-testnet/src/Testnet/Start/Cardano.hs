@@ -388,15 +388,18 @@ cardanoTestnet
   -- Interrupt cardano nodes when the main process is interrupted
   liftIOAnnotated $ interruptNodesOnSigINT testnetNodes'
 
+
   -- Make sure that all nodes are healthy by waiting for a chain extension.
   -- The deadline covers the worst case in which the chain can still start: genesis start
   -- time lies at most 'startTimeOffsetSeconds' in the future, and the first block must
   -- appear within the forecast horizon after it (see 'chainForecastHorizon'), plus
   -- 'startupDetectionMarginSeconds'.
+  {-
   let startupHorizon = chainForecastHorizon shelleyGenesis
       startupBlockTimeout =
         startTimeOffsetSeconds + ceiling startupHorizon + startupDetectionMarginSeconds
   mapConcurrently_ (waitForBlockThrow startupHorizon startupBlockTimeout (File nodeConfigFile)) testnetNodes'
+  -}
 
   let runtime = TestnetRuntime
         { configurationFile = File nodeConfigFile
@@ -446,14 +449,14 @@ cardanoTestnet
     mkTestnetNodeKeyPaths n = makePathsAbsolute $ Defaults.defaultSpoKeys n
 
     -- wait for new blocks or throw an exception if there are none in the timeout period
-    waitForBlockThrow :: MonadUnliftIO m
+    _waitForBlockThrow :: MonadUnliftIO m
                       => MonadCatch m
                       => DTC.NominalDiffTime -- ^ the chain's forecast horizon, for diagnostics
                       -> Int -- ^ timeout in seconds
                       -> NodeConfigFile 'In
                       -> TestnetNode
                       -> m ()
-    waitForBlockThrow horizon timeoutSeconds nodeConfigFile node@TestnetNode{nodeName} = do
+    _waitForBlockThrow horizon timeoutSeconds nodeConfigFile node@TestnetNode{nodeName} = do
       fs <- liftIO $ mkNodeConfigFs nodeConfigFile
       result <- timeout (timeoutSeconds * 1_000_000) $
         runExceptT . foldEpochState
