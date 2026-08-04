@@ -171,6 +171,9 @@ import           System.Win32.File
 import           Ouroboros.Consensus.Mempool (MempoolTimeoutConfig(..))
 import           GHC.Stack
 
+import Data.IORef (newIORef)
+import Cardano.Base.FeatureFlags (CardanoFeatureFlag (..))
+
 {- HLINT ignore "Fuse concatMap/map" -}
 {- HLINT ignore "Redundant <$>" -}
 {- HLINT ignore "Use fewer imports" -}
@@ -415,7 +418,7 @@ handleSimpleNode blockType runP tracers nc cmdPc networkMagic onKernel = do
           , rnGetUseBootstrapPeers = readTVar useBootstrapVar
           , rnTxSubmissionLogicVersion = ncTxSubmissionLogicVersion nc
           , rnTxSubmissionInitDelay = ncTxSubmissionInitDelay nc
-          , rnFeatureFlags = mempty -- TODO(10.7) forward this to CLI options?
+          , rnFeatureFlags = Set.singleton PerasFlag
           }
 #ifdef UNIX
     -- initial `SIGHUP` handler, which rereads the topology file and the RPC config from the main configuration file

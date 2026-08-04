@@ -9,6 +9,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 {-# OPTIONS_GHC -Wno-noncanonical-monoid-instances #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
 {- HLINT ignore "Functor law" -}
 
@@ -484,17 +485,14 @@ instance FromJSON PartialNodeConfiguration where
                 ]
               Nothing -> return Nothing
 
-      defaultSnapshotFrequencyArgs = case spaFrequency defaultSnapshotPolicyArgs of
-        SnapshotFrequency sfa -> sfa
-        DisableSnapshots -> error "defaultSnapshotPolicyArgs unexpectedly disables snapshots"
+--      defaultSnapshotFrequencyArgs = case spaFrequency defaultSnapshotPolicyArgs of
+--        SnapshotFrequency sfa -> sfa
+--        DisableSnapshots -> error "defaultSnapshotPolicyArgs unexpectedly disables snapshots"
 
-      parseLedgerDbConfig v = do
-        let snapInterval x = do
-              si <- x .:? "SnapshotInterval"
-              when (any (<= 0) si) $ fail $ "Non-positive SnapshotInterval: " <> show si
-              pure $ fmap (RequestedSnapshotInterval . fromJust . nonZero) si
-            snapNum x      = fmap NumOfDiskSnapshots <$> x .:? "NumOfDiskSnapshots"
-
+      parseLedgerDbConfig _v = do
+        -- FIXME
+        pure $ Just $ LedgerDbConfiguration defaultSnapshotPolicyArgs DefaultQueryBatchSize V2InMemory (DeprecatedOptions [])
+{-
         mTopLevelSnapInterval <- snapInterval v
         mTopLevelSnapNum <- snapNum v
 
@@ -578,6 +576,7 @@ instance FromJSON PartialNodeConfiguration where
                    _ -> withObject "Snapshots" parseSnapshotOpts sv
 
              pure $ Just $ LedgerDbConfiguration spArgs qsize selector deprecatedOpts
+-}
 
       parseByronProtocol v = do
         primary   <- v .:? "ByronGenesisFile"

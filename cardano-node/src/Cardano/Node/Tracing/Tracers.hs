@@ -63,6 +63,8 @@ import           Network.Mux.Trace (TraceLabelPeer (..))
 import qualified Network.Mux.Trace as Mux
 import           Network.Mux.Tracing ()
 
+import Ouroboros.Consensus.Block.SupportsPeras (PerasError)
+
 
 -- | Wrap a tracing effect as a Tracer.
 -- 'emit' from contra-tracer returns TracerA, not Tracer; 'arrow' wraps it.
@@ -80,6 +82,7 @@ mkDispatchTracers
     (TraceLabelPeer
       (ConnectionId RemoteAddress) (TraceChainSyncClientEvent blk))
   , LogFormatting (TraceGsmEvent (Tip blk))
+  , LogFormatting (PerasError blk)
   , MetaTrace (TraceGsmEvent (Tip blk))
   , ToJSON (HeaderHash blk)
   )
@@ -202,6 +205,7 @@ mkConsensusTracers :: forall blk.
   , LogFormatting (TraceLabelPeer
                     (ConnectionId RemoteAddress) (TraceChainSyncClientEvent blk))
   , LogFormatting (TraceGsmEvent (Tip blk))
+  , LogFormatting (PerasError blk)
   , MetaTrace (TraceGsmEvent (Tip blk))
   , ToJSON (HeaderHash blk)
   )
@@ -353,6 +357,16 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
     !txCountersTracer  <-  mkCardanoTracer
                 trBase trForward mbTrEKG
                 ["txCounters", "Remote"]
+ 
+    !txPerasCertIn <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Cert", "Inbound"]
+    !txPerasCertOut <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Cert", "Outbound"]
+    !txPerasVoteIn <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Vote", "Inbound"]
+    !txPerasVoteOut <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Vote", "Outbound"]
+    !txPerasCertInclusion <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Cert", "Inclusion"]
+    !txPerasVoteForging <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Vote", "Forging"]
+    -- TODO: add LogFormatting instance
+    -- testnetTrac <- mkCardanoTracer trBase trForward mbTrEKG ["Testnet"]
+
     configureTracers configReflection trConfig [txCountersTracer]
 
     pure $ Consensus.Tracers
@@ -407,12 +421,12 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
           traceWith txLogicTracer
       , Consensus.txCountersTracer = mkT$
           traceWith txCountersTracer
-      , Consensus.perasCertDiffusionInboundTracer = nullTracer
-      , Consensus.perasCertDiffusionOutboundTracer = nullTracer
-      , Consensus.perasVoteDiffusionInboundTracer = nullTracer
-      , Consensus.perasVoteDiffusionOutboundTracer = nullTracer
-      , Consensus.perasCertInclusionTracer = nullTracer
-      , Consensus.perasVoteForgingTracer = nullTracer
+      , Consensus.perasCertDiffusionInboundTracer = mkT$ traceWith txPerasCertIn
+      , Consensus.perasCertDiffusionOutboundTracer = mkT$ traceWith txPerasCertOut
+      , Consensus.perasVoteDiffusionInboundTracer = mkT$ traceWith txPerasVoteIn
+      , Consensus.perasVoteDiffusionOutboundTracer = mkT$ traceWith txPerasVoteOut
+      , Consensus.perasCertInclusionTracer = mkT$ traceWith txPerasCertInclusion
+      , Consensus.perasVoteForgingTracer = mkT$ traceWith txPerasVoteForging
       , Consensus.testnetTracer = nullTracer
       }
 
