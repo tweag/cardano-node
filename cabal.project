@@ -92,7 +92,7 @@ allow-newer:
 source-repository-package
   type: git
   location: https://github.com/tweag/cardano-api.git
-  tag: 518f5bfc764a08a193fa20c27a883ff2c9350972
+  tag: de210f9f6a6a98b94ede974addce3730a2df8929
   --sha256: sha256-KjA475iq66pFefawNjYd8gKqoJuzlWpkEhpfIYhh0n8=
   subdir:
     cardano-api
@@ -101,7 +101,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/tweag/cardano-cli.git
-  tag: 78a4c9635a039c70bdb315c3dfcb4e077023b4c1
+  tag: a73df9c7509408e75531cd47c45b4c79159a2dbf
   --sha256: sha256-2Vf0K7FvI81KsHs3AktLNlK6syQDbAGy99aYS6dTC84=
   subdir:
     cardano-cli
