@@ -91,7 +91,7 @@ allow-newer:
 
 source-repository-package
   type: git
-  location: https://github.com/IntersectMBO/cardano-api.git
+  location: https://github.com/tweag/cardano-api.git
   tag: 518f5bfc764a08a193fa20c27a883ff2c9350972
   --sha256: sha256-KjA475iq66pFefawNjYd8gKqoJuzlWpkEhpfIYhh0n8=
   subdir:
@@ -100,7 +100,7 @@ source-repository-package
 
 source-repository-package
   type: git
-  location: https://github.com/IntersectMBO/cardano-cli.git
+  location: https://github.com/tweag/cardano-cli.git
   tag: 78a4c9635a039c70bdb315c3dfcb4e077023b4c1
   --sha256: sha256-2Vf0K7FvI81KsHs3AktLNlK6syQDbAGy99aYS6dTC84=
   subdir:
@@ -138,7 +138,7 @@ source-repository-package
 
 source-repository-package
   type: git
-  location: https://github.com/f-f/kes-agent.git
+  location: https://github.com/tweag/kes-agent.git
   tag: c0d24ab8bf8f9f736aed3c7028534355fb89ecaa
   --sha256: sha256-T3rDZ38iMuE7SZpttHX6yTJYqWqdyw6Qsh5irs1d2T8=
   subdir:
@@ -174,6 +174,6 @@ source-repository-package
 
 source-repository-package
   type: git
-  location: https://github.com/f-f/ekg-forward
+  location: https://github.com/tweag/ekg-forward
   tag: 4aa20a44d7ad3dce826e8aa6a6c7568fdcc4d8b3
   --sha256: sha256-s5Hxxm04HmFVmdBjAnFEsJEhTqr5Z/uiB4K1s2VaVwE=
