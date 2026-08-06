@@ -109,8 +109,8 @@ source-repository-package
 -- cardano-ledger on master 2026-06-30
 source-repository-package
   type: git
-  location: https://github.com/IntersectMBO/cardano-ledger.git
-  tag: f649f9751074d2ab3de033fc3912f29c9862c1f5
+  location: https://github.com/tweag/cardano-ledger.git
+  tag: 9d23600b9effc27e7465a323539169168f277293
   --sha256: sha256-btGWR8yoR+wBnUvCe7n2LBDYmJO9laEJrbNvrx/bu5s=
   subdir:
     eras/allegra/impl
