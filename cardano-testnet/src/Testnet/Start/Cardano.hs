@@ -394,10 +394,10 @@ cardanoTestnet
   -- time lies at most 'startTimeOffsetSeconds' in the future, and the first block must
   -- appear within the forecast horizon after it (see 'chainForecastHorizon'), plus
   -- 'startupDetectionMarginSeconds'.
-  {-
-  let startupHorizon = chainForecastHorizon shelleyGenesis
-      startupBlockTimeout =
+  let _startupHorizon = chainForecastHorizon shelleyGenesis
+      _startupBlockTimeout =
         startTimeOffsetSeconds + ceiling startupHorizon + startupDetectionMarginSeconds
+  {-
   mapConcurrently_ (waitForBlockThrow startupHorizon startupBlockTimeout (File nodeConfigFile)) testnetNodes'
   -}
 
