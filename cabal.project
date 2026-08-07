@@ -93,7 +93,7 @@ source-repository-package
   type: git
   location: https://github.com/tweag/cardano-api.git
   tag: 28bb57a38bf85791ee66bfe123853ff3275811bf
-  --sha256: sha256-KjA475iq66pFefawNjYd8gKqoJuzlWpkEhpfIYhh0n8=
+  --sha256: sha256-yn2wupW4aMvjvO2qjPxQTSZo3IYhepwHHXNCC9Sic/E=
   subdir:
     cardano-api
     cardano-rpc
@@ -102,7 +102,7 @@ source-repository-package
   type: git
   location: https://github.com/tweag/cardano-cli.git
   tag: a73df9c7509408e75531cd47c45b4c79159a2dbf
-  --sha256: sha256-2Vf0K7FvI81KsHs3AktLNlK6syQDbAGy99aYS6dTC84=
+  --sha256: sha256-bV0b2vhgoJ4Cg7dHYpnVmcTutBSytXT+IADMSDmgitE=
   subdir:
     cardano-cli
 
@@ -111,7 +111,7 @@ source-repository-package
   type: git
   location: https://github.com/tweag/cardano-ledger.git
   tag: 9d23600b9effc27e7465a323539169168f277293
-  --sha256: sha256-btGWR8yoR+wBnUvCe7n2LBDYmJO9laEJrbNvrx/bu5s=
+  --sha256: sha256-WrjsOQDhSsPjStnmtpIxjnP2HY7e3qdaiL0u+dr87mo=
   subdir:
     eras/allegra/impl
     eras/alonzo/impl
@@ -149,7 +149,7 @@ source-repository-package
   type: git
   location: https://github.com/IntersectMBO/ouroboros-consensus.git
   tag: d0beffba91951f37898d33b3851658f432ea6e2d
-  --sha256: sha256-X1Yd6TMYhhxbm8qiD3y8Ad3nY2D5wieGWf9kwoRCWxc=
+  --sha256: sha256-k1Wo1Kj79PGl4g/uOCzTCPVe4eKbZRXylOvR5XeRTko=
   subdir:
     .
 
@@ -157,7 +157,7 @@ source-repository-package
   type: git
   location: https://github.com/tweag/ouroboros-network.git
   tag: 2c0bfe55ed067d8a2ab7ef8e06fac3402b057510
-  --sha256: sha256-gLphW8Pl9P7Du8WL8cQTkKx+gVyf5HEqSD4uFy3I+uE=
+  --sha256: sha256-qXWglOUjgBKafnu7uTPnv2deG424e4LmJsdu/u2X7Vc=
   subdir:
     ./cardano-diffusion
     ./monoidal-synchronisation
@@ -168,7 +168,7 @@ source-repository-package
   type: git
   location: https://github.com/IntersectMBO/dmq-node.git
   tag: 1bfaef965661370f89068fc5241a4f461f129b9c
-  --sha256: sha256-pMU7fiWDs8mHb5F66hs7jVTbXEJYA2O20xQFGRk/WWw=
+  --sha256: sha256-+x9F4EAQjepxVrMcxYqkt2/mkl24TItpWZbG5BjZ7Ds=
   subdir:
     dmq-node
 
@@ -176,4 +176,4 @@ source-repository-package
   type: git
   location: https://github.com/tweag/ekg-forward
   tag: 4aa20a44d7ad3dce826e8aa6a6c7568fdcc4d8b3
-  --sha256: sha256-s5Hxxm04HmFVmdBjAnFEsJEhTqr5Z/uiB4K1s2VaVwE=
+  --sha256: sha256-yk67GraJUsFi5mSETnaeuKNSnNRLOri6FK5yzmRLzxU=
