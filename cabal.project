@@ -30,9 +30,6 @@ constraints:
 package acts
   flags: -finitary
 
-package cardano-api
-  ghc-options: -XUndecidableSuperClasses
-
 packages:
   cardano-node
   cardano-node-capi
@@ -92,8 +89,8 @@ allow-newer:
 source-repository-package
   type: git
   location: https://github.com/tweag/cardano-api.git
-  tag: df8345266e7e0c14c700c8b04b9755cab24e7091
-  --sha256: sha256-IAwbnZXFVy5TL+D11uyjjPqUoFe0b2mnZ13usO6N4tg=
+  tag: 4f101b375a84b1f31e2a82892fc04d23a3cfe661
+  --sha256: sha256-BVBqylDEav9Kw3osqNHTwQdfj8thY+G2eroe38TYf7w=
   subdir:
     cardano-api
     cardano-rpc
