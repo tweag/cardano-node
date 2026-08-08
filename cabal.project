@@ -92,8 +92,8 @@ allow-newer:
 source-repository-package
   type: git
   location: https://github.com/tweag/cardano-api.git
-  tag: 8c989ee703b44fcdd48f7beb9571be6d5df9dba9
-  --sha256: sha256-zk5CrpOE640BD07cIamiUlrs85bcjksbdX5rOlx117Q=
+  tag: df8345266e7e0c14c700c8b04b9755cab24e7091
+  --sha256: sha256-IAwbnZXFVy5TL+D11uyjjPqUoFe0b2mnZ13usO6N4tg=
   subdir:
     cardano-api
     cardano-rpc
