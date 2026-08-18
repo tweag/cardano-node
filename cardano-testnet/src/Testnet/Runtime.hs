@@ -174,12 +174,15 @@ startNode tp node ipv4 port _testnetMagic mNodeBin nodeCmd = GHC.withFrozenCallS
     unless isClosed $
       throwString $ "Port is still in use after " ++ show portWaitTimeout ++ " seconds before starting node: " <> show port
 
+    let nodeEnv = [("NODE_ID", node)]
+
     (Just stdIn, _, _, hProcess, _)
       <- firstExceptT ProcessRelatedFailure $ initiateProcess
             $ nodeProcess
                { IO.std_in = IO.CreatePipe, IO.std_out = IO.UseHandle hNodeStdout
                , IO.std_err = IO.UseHandle hNodeStderr
                , IO.cwd = Just tempBaseAbsPath
+               , IO.env = Just nodeEnv
                }
 
     -- We force the evaluation of initiateProcess so we can be sure that
