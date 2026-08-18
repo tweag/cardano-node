@@ -191,6 +191,7 @@ library
                       , typed-protocols:{typed-protocols, stateful} >= 1.2
                       , yaml
                       , cardano-protocol
+                      , cardano-base
 
 executable cardano-node
   import:               project-config
