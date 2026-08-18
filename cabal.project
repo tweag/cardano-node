@@ -145,8 +145,8 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/tweag/ouroboros-consensus.git
-  tag: d0beffba91951f37898d33b3851658f432ea6e2d
-  --sha256: sha256-k1Wo1Kj79PGl4g/uOCzTCPVe4eKbZRXylOvR5XeRTko=
+  tag: 072326809393ca790dbbce70f9c757ce021e5319
+  --sha256: sha256-RE+Ai/CMgY3qMWxXgVsTgVsykyfPHl3zBNK8KMCYPs8=
   subdir:
     .
 
