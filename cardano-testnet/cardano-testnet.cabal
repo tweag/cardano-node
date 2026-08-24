@@ -40,6 +40,7 @@ library
                       , aeson-pretty
                       , annotated-exception
                       , ansi-terminal
+                      , base16-bytestring
                       , bytestring
                       , cardano-api ^>= 11.7
                       , cardano-cli:{cardano-cli, cardano-cli-test-lib} ^>= 11.2.2
@@ -87,6 +88,7 @@ library
                       , parsec
                       , ouroboros-network:{api, framework, ouroboros-network} ^>= 1.2
                       , cardano-diffusion:{api, cardano-diffusion} ^>= 1.1.1
+                      , ouroboros-consensus ^>= 4.0
                       , prettyprinter
                       , process
                       , resourcet

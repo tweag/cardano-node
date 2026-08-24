@@ -91,7 +91,7 @@ mkSomeConsensusProtocolCardano NodeByronProtocolConfiguration {
                              npcConwayGenesisFile,
                              npcConwayGenesisFileHash
                            }
-                           ndpc
+                           _ndpc
                            NodeHardForkProtocolConfiguration {
                             -- During testing of the Alonzo era, we conditionally declared that we
                             -- knew about the Alonzo era. We do so only when a config option for
@@ -134,14 +134,15 @@ mkSomeConsensusProtocolCardano NodeByronProtocolConfiguration {
         Conway.readGenesis npcConwayGenesisFile
                                 npcConwayGenesisFileHash
 
-    dijkstraGenesis <-
-      case ndpc of
-        Nothing -> pure Dijkstra.emptyDijkstraGenesis
-        Just (NodeDijkstraProtocolConfiguration npcDijkstraGenesisFile npcDijkstraGenesisFileHash) -> do
-          (dijkstraGenesis, _dijkstraGenesisHash) <- firstExceptT CardanoProtocolInstantiationDijkstraGenesisReadError $
-           Dijkstra.readGenesis npcDijkstraGenesisFile
-                                 npcDijkstraGenesisFileHash
-          pure dijkstraGenesis
+    dijkstraGenesis <- pure Dijkstra.emptyDijkstraGenesis
+-- FIXME: uncomment
+--      case ndpc of
+--        Nothing -> pure Dijkstra.emptyDijkstraGenesis
+--        Just (NodeDijkstraProtocolConfiguration npcDijkstraGenesisFile npcDijkstraGenesisFileHash) -> do
+--          (dijkstraGenesis, _dijkstraGenesisHash) <- firstExceptT CardanoProtocolInstantiationDijkstraGenesisReadError $
+--           Dijkstra.readGenesis npcDijkstraGenesisFile
+--                                 npcDijkstraGenesisFileHash
+--          pure dijkstraGenesis
 
     shelleyLeaderCredentials <-
       firstExceptT CardanoProtocolInstantiationPraosLeaderCredentialsError $
