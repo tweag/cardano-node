@@ -81,7 +81,7 @@ import           Cardano.Node.Testnet.Paths (defaultConfigFile, defaultNodeEnvFi
                    defaultPortFile, defaultUtxoAddrPath)
 import           Testnet.Filepath
 import           Testnet.Orphans ()
-import           Testnet.Process.RunIO (execCli', execCli_, liftIOAnnotated, mkExecConfig)
+import           Testnet.Process.RunIO (execCli', execCli_, liftIOAnnotated, mkExecConfig, defaultExecConfig)
 import           Testnet.Property.Assert (assertExpectedSposInLedgerState)
 import           Testnet.Runtime as TR
 import           Testnet.Signal (interruptNodesOnSigINT)
@@ -366,8 +366,17 @@ cardanoTestnet
           keys@SpoNodeKeys{poolNodeKeysVrf} = mkTestnetNodeKeyPaths i
       pure (Just keys, kesSourceCliArg <> shelleyCliArgs <> byronCliArgs)
 
+    perasOptions <- case mKeys of
+      Nothing -> throwString "The node is not SPO, can't pass the peras pool id"
+      Just SpoNodeKeys{poolNodeKeysCold} -> do
+        poolId <- execCli' defaultExecConfig
+          [ "latest", "stake-pool", "id"
+          , "--cold-verification-key-file", verificationKeyFp poolNodeKeysCold
+          ]
+        pure (poolId, signingKeyFp poolNodeKeysCold)
+
     eRuntime <- runExceptT . retryOnAddressInUseError $
-      startNode (TmpAbsolutePath tmpAbsPath) nodeName testnetDefaultIpv4Address port testnetMagic (nodeBin nodeWithOptions) $
+      startNode (TmpAbsolutePath tmpAbsPath) nodeName testnetDefaultIpv4Address port testnetMagic (nodeBin nodeWithOptions) perasOptions $
         [ "run"
         , "--config", nodeConfigFile
         , "--topology", nodeDataDir </> "topology.json"
