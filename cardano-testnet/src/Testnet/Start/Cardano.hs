@@ -54,7 +54,9 @@ import           Control.Exception (IOException)
 import           Control.Monad.Catch
 import           Control.Monad.Trans.Resource (MonadResource, getInternalState)
 import           Data.Aeson
+import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.Aeson.Encode.Pretty as A
+import qualified Data.ByteString.Lazy.Char8 as BSL8
 import qualified Data.Yaml as Yaml
 import qualified Data.ByteString.Lazy as LBS
 import           Data.Default.Class ()
@@ -372,8 +374,14 @@ cardanoTestnet
         poolId <- execCli' defaultExecConfig
           [ "latest", "stake-pool", "id"
           , "--cold-verification-key-file", verificationKeyFp poolNodeKeysCold
+          , "--output-hex"
           ]
-        pure (poolId, signingKeyFp poolNodeKeysCold)
+        privateKeyContent <- liftIOAnnotated $ readFile (signingKeyFp poolNodeKeysCold)
+        case decode (BSL8.pack privateKeyContent) of
+          (Just (Object keyMap)) -> case Aeson.lookup "cborHex" keyMap of
+            Just (String privateKey) -> pure (poolId, Text.unpack $ Text.drop 4 privateKey)
+            _ -> throwString "Failed to parse PERAS_PRIVATE_KEY: missing cborHex field"
+          _ -> throwString "Failed to parse PERAS_PRIVATE_KEY: skey file is incorrect"
 
     eRuntime <- runExceptT . retryOnAddressInUseError $
       startNode (TmpAbsolutePath tmpAbsPath) nodeName testnetDefaultIpv4Address port testnetMagic (nodeBin nodeWithOptions) perasOptions $
