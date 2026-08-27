@@ -41,9 +41,11 @@ import           Data.Algorithm.Diff
 import           Data.Algorithm.DiffOutput
 import           Data.Bifunctor (first)
 import qualified Data.ByteString.Lazy.Char8 as BSC
+import           Data.Char (isDigit)
 import           Data.List (isInfixOf)
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NEL
+import qualified Data.Text as Text
 import           GHC.Stack
 import qualified GHC.Stack as GHC
 import           Network.Socket (HostAddress, PortNumber)
@@ -54,9 +56,10 @@ import qualified System.IO as IO
 import qualified System.Process as IO
 import           System.Process (waitForProcess)
 import           System.Timeout (timeout)
+import           Text.Read (readMaybe)
 
 import           Testnet.Filepath
-import           Cardano.Node.Testnet.Paths (defaultSocketName)
+import           Cardano.Node.Testnet.Paths (defaultSocketName, defaultSpoColdVKeyFp)
 import qualified Testnet.Ping as Ping
 import           Testnet.Process.Run (ProcessError (..), initiateProcess)
 import           Testnet.Process.RunIO (execCli_, execKesAgentControl_, liftIOAnnotated,
@@ -174,7 +177,22 @@ startNode tp node ipv4 port _testnetMagic mNodeBin nodeCmd = GHC.withFrozenCallS
     unless isClosed $
       throwString $ "Port is still in use after " ++ show portWaitTimeout ++ " seconds before starting node: " <> show port
 
-    let nodeEnv = [("NODE_ID", node)]
+    -- PERAS_POOL_ID = hex-encoded hash of this node's SPO cold vkey
+    perasPoolId <- liftIOAnnotated $
+      case readMaybe (List.dropWhile (not . isDigit) node) :: Maybe Int of
+        Nothing -> error "perasPoolId: Unable to parse digit"
+        Just i -> do
+          let coldVKeyFp = unTmpAbsPath tp </> defaultSpoColdVKeyFp i
+          -- Should we check for existence?
+          readFileTextEnvelope (File coldVKeyFp) >>= \case
+            Left _ -> error "perasPoolId: Unable to read cold vkey"
+            Right (vkey :: VerificationKey StakePoolKey) ->
+              pure $ Text.unpack . serialiseToRawBytesHexText $ verificationKeyHash vkey
+
+    let nodeEnv =
+          [ ("NODE_ID", node)
+          , ("PERAS_POOL_ID", perasPoolId)
+          ]
 
     (Just stdIn, _, _, hProcess, _)
       <- firstExceptT ProcessRelatedFailure $ initiateProcess

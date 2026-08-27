@@ -2922,6 +2922,8 @@ instance LogFormatting (Peras.TracePerasCertInclusionEvent) where
       ]
 
 instance LogFormatting (Peras.TracePerasVoteForgingEvent blk) where
+  forMachine _dtal (Peras.TracePerasVotingAlreadyVoted {}) =
+      "kind" .= String "TracePerasVotingAlreadyVoted"
   forMachine _dtal (Peras.TracePerasVotingRuleEvent {}) =
       "kind" .= String "TracePerasVotingRuleEvent"
   forMachine _dtal (Peras.TracePerasVotingNoVoteAfterFirstSlotInRound {}) =
@@ -2938,6 +2940,8 @@ instance LogFormatting (Peras.TracePerasVoteForgingEvent blk) where
       "kind" .= String "TracePerasVotingCantReadEnv"
 
 instance MetaTrace (Peras.TracePerasVoteForgingEvent blk) where
+    namespaceFor (Peras.TracePerasVotingAlreadyVoted {}) =
+        Namespace [] ["VotingAlreadyVoted"]
     namespaceFor (Peras.TracePerasVotingRuleEvent {}) =
         Namespace [] ["VotingRuleEvent"]
     namespaceFor (Peras.TracePerasVotingNoVoteAfterFirstSlotInRound {}) =
