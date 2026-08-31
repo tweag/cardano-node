@@ -56,6 +56,8 @@ import           Control.Monad.Trans.Resource (MonadResource, getInternalState)
 import           Data.Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.Aeson.Encode.Pretty as A
+import qualified Data.ByteString.Base16 as B16
+import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Lazy.Char8 as BSL8
 import qualified Data.Yaml as Yaml
 import qualified Data.ByteString.Lazy as LBS
@@ -75,6 +77,8 @@ import           GHC.Stack
 import qualified System.Directory as IO
 import qualified System.Process as Process
 import           System.FilePath ((</>))
+
+import qualified Ouroboros.Consensus.Committee.Crypto.BLS as BLS
 
 import           Testnet.ChainWatchdog (chainForecastHorizon, chainStallWatchdog, stderrTracer)
 import           Testnet.Components.Configuration
@@ -327,6 +331,42 @@ cardanoTestnet
     liftIOAnnotated . LBS.writeFile shelleyGenesisFile $ A.encodePretty shelleyGenesis'
 
   let portNumbersMap = Map.fromList portNumbers
+      bLSKeyScope :: BLS.KeyScope
+      bLSKeyScope = "TESTNET"
+
+  perasSpoKeys <- forM (zip [1 :: Int ..] (NEL.toList cardanoSpoNodes)) $ \(i, _) -> do
+    let SpoNodeKeys{poolNodeKeysCold} = mkTestnetNodeKeyPaths i
+    poolId <- execCli' defaultExecConfig
+      [ "latest", "stake-pool", "id"
+      , "--cold-verification-key-file", verificationKeyFp poolNodeKeysCold
+      , "--output-hex"
+      ]
+    privateKeyContent <- liftIOAnnotated $ readFile (signingKeyFp poolNodeKeysCold)
+    privateKeyHex <- case decode (BSL8.pack privateKeyContent) of
+      (Just (Object keyMap)) -> case Aeson.lookup "cborHex" keyMap of
+        Just (String privateKey) -> pure (Text.unpack $ Text.drop 4 privateKey)
+        _ -> throwString "Failed to parse PERAS_PRIVATE_KEY: missing cborHex field"
+      _ -> throwString "Failed to parse PERAS_PRIVATE_KEY: skey file is incorrect"
+    privateKeyBytes <- case B16.decode (BSC.pack privateKeyHex) of
+      Left err -> throwString $ "Failed to decode Peras BLS private key for pool " <> poolId <> ": " <> err
+      Right bytes -> pure bytes
+    privateKey <- case BLS.rawDeserialisePrivateKey bLSKeyScope privateKeyBytes of
+      Nothing -> throwString $ "Failed to parse Peras BLS private key for pool " <> poolId
+      Just sk -> pure sk
+    let publicKeyBytes = BLS.rawSerialisePublicKey (BLS.derivePublicKey privateKey)
+    pure (i, poolId, privateKeyHex, publicKeyBytes)
+
+  let perasOptionsByIndex :: Map.Map Int (String, String)
+      perasOptionsByIndex = Map.fromList
+        [ (i, (poolId, privateKeyHex)) | (i, poolId, privateKeyHex, _) <- perasSpoKeys ]
+
+      perasPublicKeysFile = tmpAbsPath </> "peras-public-keys.json"
+
+  liftIOAnnotated . LBS.writeFile perasPublicKeysFile . encode $
+    Map.fromList
+      [ (Text.pack poolId, Text.pack $ BSC.unpack publicKeyBytes)
+      | (_, poolId, _, publicKeyBytes) <- perasSpoKeys
+      ]
 
   eTestnetNodes <- forConcurrently (zip [1..] allNodes) $ \(i, (isSpo, nodeWithOptions)) -> do
     port <- case Map.lookup i portNumbersMap of
@@ -368,23 +408,10 @@ cardanoTestnet
           keys@SpoNodeKeys{poolNodeKeysVrf} = mkTestnetNodeKeyPaths i
       pure (Just keys, kesSourceCliArg <> shelleyCliArgs <> byronCliArgs)
 
-    perasOptions <- case mKeys of
-      Nothing -> throwString "The node is not SPO, can't pass the peras pool id"
-      Just SpoNodeKeys{poolNodeKeysCold} -> do
-        poolId <- execCli' defaultExecConfig
-          [ "latest", "stake-pool", "id"
-          , "--cold-verification-key-file", verificationKeyFp poolNodeKeysCold
-          , "--output-hex"
-          ]
-        privateKeyContent <- liftIOAnnotated $ readFile (signingKeyFp poolNodeKeysCold)
-        case decode (BSL8.pack privateKeyContent) of
-          (Just (Object keyMap)) -> case Aeson.lookup "cborHex" keyMap of
-            Just (String privateKey) -> pure (poolId, Text.unpack $ Text.drop 4 privateKey)
-            _ -> throwString "Failed to parse PERAS_PRIVATE_KEY: missing cborHex field"
-          _ -> throwString "Failed to parse PERAS_PRIVATE_KEY: skey file is incorrect"
+    let perasOptions = Map.lookup i perasOptionsByIndex
 
     eRuntime <- runExceptT . retryOnAddressInUseError $
-      startNode (TmpAbsolutePath tmpAbsPath) nodeName testnetDefaultIpv4Address port testnetMagic (nodeBin nodeWithOptions) perasOptions $
+      startNode (TmpAbsolutePath tmpAbsPath) nodeName testnetDefaultIpv4Address port testnetMagic (nodeBin nodeWithOptions) (perasPublicKeysFile, perasOptions) $
         [ "run"
         , "--config", nodeConfigFile
         , "--topology", nodeDataDir </> "topology.json"

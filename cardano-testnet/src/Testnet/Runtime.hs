@@ -126,13 +126,13 @@ startNode
   -- ^ Testnet magic
   -> Maybe FilePath
   -- ^ Optional custom node binary. 'Nothing' uses the default resolution.
-  -> (String, String)
+  -> (FilePath, Maybe (String, String))
   -- ^ Peras options
   -> [String]
   -- ^ The command to execute to start the node.
   -- @--socket-path@, @--port@, and @--host-addr@ gets added automatically.
   -> ExceptT NodeStartFailure m TestnetNode
-startNode tp node ipv4 port _testnetMagic mNodeBin (perasPoolId, perasPrivateKey) nodeCmd = GHC.withFrozenCallStack $ do
+startNode tp node ipv4 port _testnetMagic mNodeBin (perasPublicKeysFile, perasOptions) nodeCmd = GHC.withFrozenCallStack $ do
   let tempBaseAbsPath = makeTmpBaseAbsPath tp
       socketDir = makeSocketDir tp
       logDir = makeLogDir tp
@@ -176,11 +176,16 @@ startNode tp node ipv4 port _testnetMagic mNodeBin (perasPoolId, perasPrivateKey
     unless isClosed $
       throwString $ "Port is still in use after " ++ show portWaitTimeout ++ " seconds before starting node: " <> show port
 
+    let perasEnv = case perasOptions of
+          Nothing -> []
+          Just (perasPoolId, perasPrivateKey) ->
+            [ ("PERAS_POOL_ID", perasPoolId)
+            , ("PERAS_PRIVATE_KEY", perasPrivateKey)
+            ]
     let nodeEnv =
           [ ("NODE_ID", node)
-          , ("PERAS_POOL_ID", perasPoolId)
-          , ("PERAS_PRIVATE_KEY", perasPrivateKey)
-          ]
+          , ("PERAS_PUBLIC_KEY_FILE", perasPublicKeysFile)
+          ] ++ perasEnv
 
     (Just stdIn, _, _, hProcess, _)
       <- firstExceptT ProcessRelatedFailure $ initiateProcess
