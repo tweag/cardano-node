@@ -192,6 +192,7 @@ startNode tp node ipv4 port _testnetMagic mNodeBin nodeCmd = GHC.withFrozenCallS
     let nodeEnv =
           [ ("NODE_ID", node)
           , ("PERAS_POOL_ID", perasPoolId)
+          , ("PERAS_COMMITTEE_SIZE", "3")
           ]
 
     (Just stdIn, _, _, hProcess, _)
