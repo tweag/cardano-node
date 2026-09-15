@@ -68,6 +68,7 @@ import qualified Data.ByteString.Lazy as BSL
 import           Data.Maybe (fromMaybe)
 import           Data.Proxy (Proxy (..))
 import qualified Data.Text as T
+import           Debug.Trace (traceM)
 import qualified Network.HTTP.Client as Http
 import           Network.Mux.Trace (TraceLabelPeer (..))
 import qualified Network.Mux.Trace as Mux
@@ -374,6 +375,8 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
 
     nodeId <- fmap (fromMaybe "unknown-node") $ liftIO $ lookupEnv "NODE_ID"
     manager <- Http.newManager Http.defaultManagerSettings
+      { Http.managerResponseTimeout = Http.responseTimeoutMicro 10000  -- 10ms
+      }
 
     configureTracers configReflection trConfig [txCountersTracer]
 
@@ -437,6 +440,7 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
       , Consensus.perasVoteForgingTracer = mkTracer $ traceWith txPerasVoteForging
       , Consensus.testnetTracer = mkTracer $ \case
           Consensus.DebugLog logMsg -> do
+            traceM $ mconcat [ "[Testnet Debug]: " <> T.unpack logMsg ]
             let pairStr k v = (BSC.pack k, Just (BSC.pack v))
                 queryPairs =
                     [ pairStr "node_id" nodeId
