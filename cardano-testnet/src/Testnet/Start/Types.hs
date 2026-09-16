@@ -20,6 +20,7 @@ module Testnet.Start.Types
   , NumPools(..)
   , NumRelays(..)
   , RpcSupport(..)
+  , TraceSupport(..)
   , creationNumPools
   , creationNumRelays
 
@@ -171,6 +172,11 @@ data RpcSupport
   | RpcEnabled
   deriving (Eq, Show)
 
+data TraceSupport
+  = TraceDisabled
+  | TraceEnabled
+  deriving (Eq, Show)
+
 -- | Options for creating a testnet environment (genesis files, topology, ports).
 -- Used by both the @cardano@ and @create-env@ subcommands, and by
 -- 'Testnet.Start.Cardano.createAndRunTestnet' in tests.
@@ -201,6 +207,7 @@ instance Default TestnetCreationOptions where
 data TestnetRuntimeOptions = TestnetRuntimeOptions
   { runtimeEnableNewEpochStateLogging :: Bool -- ^ if epoch state logging is enabled
   , runtimeEnableRpc :: RpcSupport -- ^ Whether to enable gRPC endpoints in all testnet nodes
+  , runtimeEnableTracer :: TraceSupport -- ^ Whether to enable cardano-tracer support for all testnet nodes
   , runtimeKESSource :: PraosCredentialsSource
   , runtimeEnableChainStallWatchdog :: Bool
     -- ^ Whether to run a background watchdog that kills the testnet with a diagnosis as
@@ -213,6 +220,7 @@ instance Default TestnetRuntimeOptions where
   def = TestnetRuntimeOptions
     { runtimeEnableNewEpochStateLogging = False
     , runtimeEnableRpc = RpcDisabled
+    , runtimeEnableTracer = TraceDisabled
     , runtimeKESSource = def
     , runtimeEnableChainStallWatchdog = True
     }

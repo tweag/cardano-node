@@ -72,6 +72,7 @@ pRuntimeOptions :: Parser TestnetRuntimeOptions
 pRuntimeOptions = TestnetRuntimeOptions
   <$> pEnableNewEpochStateLogging
   <*> pEnableRpc
+  <*> pEnableTracer
   <*> pKesSource
   <*> pEnableChainStallWatchdog
 
@@ -102,6 +103,13 @@ pEnableRpc :: Parser RpcSupport
 pEnableRpc = OA.flag RpcDisabled RpcEnabled
   (   OA.long "enable-grpc"
   <>  OA.help "[EXPERIMENTAL] Enable gRPC endpoint on all of testnet nodes. The listening socket file will be the same directory as node's N2C socket."
+  <>  OA.showDefault
+  )
+
+pEnableTracer :: Parser TraceSupport
+pEnableTracer = OA.flag TraceDisabled TraceEnabled
+  (   OA.long "enable-tracer"
+  <>  OA.help "[EXPERIMENTAL] Enable cardano-tracer support on all of testnet nodes."
   <>  OA.showDefault
   )
 
