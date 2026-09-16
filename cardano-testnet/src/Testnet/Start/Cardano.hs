@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NumericUnderscores #-}
@@ -43,6 +44,7 @@ import           Cardano.Network.Diffusion.Topology (CardanoNetworkTopology)
 import           Cardano.Node.Configuration.NodeAddress (PortNumber)
 import           Cardano.Node.Configuration.TopologyP2P ()
 import           Cardano.Prelude (NonEmpty ((:|)), canonicalEncodePretty, readMaybe)
+import           Cardano.Tracer.Configuration (LogFormat(..))
 import           Ouroboros.Network.PeerSelection.RelayAccessPoint (RelayAccessPoint (..))
 
 import           Prelude hiding (lines)
@@ -80,6 +82,7 @@ import           System.FilePath ((</>))
 
 import qualified Ouroboros.Consensus.Committee.Crypto.BLS as BLS
 
+import           Testnet.CardanoTracer (CardanoTracerConf(..), withCardanoTracer)
 import           Testnet.ChainWatchdog (chainForecastHorizon, chainStallWatchdog, stderrTracer)
 import           Testnet.Components.Configuration
 import qualified Testnet.Defaults as Defaults
@@ -248,6 +251,7 @@ cardanoTestnet
   => TestnetNodesWithOptions -- ^ The nodes to start
   -> TestnetRuntimeOptions -- ^ Runtime options
   -> Conf -- ^ Path to the test sandbox
+  -> Maybe FilePath -- ^ Maybe path to the cardano-tracer socket
   -> m TestnetRuntime
 cardanoTestnet
   TestnetNodesWithOptions{optSpoNodes=cardanoSpoNodes, optRelayNodes=cardanoRelayNodes}
@@ -260,7 +264,8 @@ cardanoTestnet
   Conf
     { tempAbsPath=TmpAbsolutePath tmpAbsPath
     , updateTimestamps
-    } = do
+    }
+  msocket = do
   let nPools = NumPools $ NEL.length cardanoSpoNodes
       allNodes = map (True,) (NEL.toList cardanoSpoNodes) ++ map (False,) cardanoRelayNodes
       nodeConfigFile = tmpAbsPath </> defaultConfigFile
@@ -420,6 +425,7 @@ cardanoTestnet
         <> spoNodeCliArgs
         <> nodeExtraCliArgs nodeWithOptions
         <> ["--grpc-enable" | RpcEnabled <- [cardanoEnableRpc]]
+        <> maybe [] (\socket -> ["--tracer-socket-path-connect", socket]) msocket
     pure $ eRuntime <&> \rt -> rt{poolKeys=mKeys}
 
   let (failedNodes, startedNodes) = partitionEithers eTestnetNodes
@@ -532,6 +538,10 @@ cardanoTestnet
             , "created."
             ]
 
+withMaybeTracer :: Maybe CardanoTracerConf -> (Maybe FilePath -> H.Integration r) -> H.Integration r
+withMaybeTracer Nothing f = f Nothing
+withMaybeTracer (Just conf) f = withCardanoTracer conf (f . Just)
+
 -- | Slack on top of the worst legitimate first-block time ('startTimeOffsetSeconds'
 -- plus the forecast horizon) when waiting for testnet startup: covers node process
 -- startup (spawning, parsing the configuration and genesis files, creating the
@@ -552,6 +562,20 @@ idToRemoteAddressP2P portNumbersMap (NodeId i) = case Map.lookup i portNumbersMa
   Nothing -> do
     throwString $ "Found node id that was unaccounted for: " ++ show i
 
+mkTracerConf :: TestnetCreationOptions -> TestnetRuntimeOptions -> Conf -> Maybe CardanoTracerConf
+mkTracerConf
+    TestnetCreationOptions {creationGenesisOptions}
+    TestnetRuntimeOptions {runtimeEnableTracer}
+    Conf {tempAbsPath=TmpAbsolutePath tmpAbsPath}
+      =
+  case runtimeEnableTracer of
+    TraceDisabled -> Nothing
+    TraceEnabled -> Just $ CardanoTracerConf
+      { testnetMagic = genesisTestnetMagic creationGenesisOptions
+      , logFormat = ForHuman
+      , tempAbsPath = tmpAbsPath
+      }
+
 -- | A convenience wrapper around `createTestnetEnv` and `cardanoTestnet`
 createAndRunTestnet :: ()
   => HasCallStack
@@ -559,10 +583,12 @@ createAndRunTestnet :: ()
   -> TestnetRuntimeOptions
   -> Conf -- ^ Path to the test sandbox
   -> H.Integration TestnetRuntime
-createAndRunTestnet creationOptions runtimeOptions conf = do
-  liftToIntegration $ do
-     createTestnetEnv creationOptions conf
-     cardanoTestnet (creationNodes creationOptions) runtimeOptions conf
+createAndRunTestnet creationOptions runtimeOptions conf
+  = do
+  withMaybeTracer (mkTracerConf creationOptions runtimeOptions conf) $ \msocket ->
+    liftToIntegration $ do
+      createTestnetEnv creationOptions conf
+      cardanoTestnet (creationNodes creationOptions) runtimeOptions conf msocket
 
 -- | Retry an action when `NodeAddressAlreadyInUseError` gets thrown from an action
 retryOnAddressInUseError

@@ -11,6 +11,7 @@ module Testnet.CardanoTracer
 
 
 import           Testnet.Filepath
+import           Cardano.Node.Testnet.Paths (defaultSocketName)
 import           Cardano.Tracer.Configuration
 
 import           Prelude
@@ -64,7 +65,7 @@ withCardanoTracer conf@CardanoTracerConf{tempAbsPath} k = do
   nodeStdoutFile <- H.noteTempFile logDir "cardano-tracer.stdout.log"
   nodeStderrFile <- H.noteTempFile logDir "cardano-tracer.stderr.log"
   logFile <- H.noteTempFile logDir "cardano-tracer.log"
-  socketFile <- H.noteTempFile (makeSocketDir tmpPath) "socket"
+  socketFile <- H.noteTempFile (makeSocketDir tmpPath) defaultSocketName
   configFile <- H.noteTempFile tempAbsPath "cardano-tracer-config.json"
 
   hNodeStdout <- H.evalIO $ IO.openFile nodeStdoutFile IO.WriteMode
