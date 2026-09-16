@@ -456,7 +456,7 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
             baseRequest <- Http.parseRequest "http://localhost:9000/advert"
             let pairStr k v = (BSC.pack k, Just $ BSC.pack v)
                 pair k v = pairStr k (show v)
-                request = flip Http.setQueryString baseRequest $
+                request = Http.setQueryString
                             [ pairStr "node_id" nodeId
                             , pair "num_certs" numCerts
                             , pair "num_votes" numVotes
@@ -466,6 +466,7 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
                             , pairStr "block_hash" blockHashStr
                             , pair "block_no" blockNum
                             ]
+                            baseRequest
             responseResult <- try (Http.httpLbs request manager) :: IO (Either SomeException (Http.Response BSL.ByteString))
             case responseResult of
                 Left _ -> pure ()
