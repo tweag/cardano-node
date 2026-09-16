@@ -29,16 +29,15 @@ import qualified Hedgehog.Extras.Test.Base as H
 import qualified Hedgehog.Extras.Test.Process as H
 
 data CardanoTracerConf = CardanoTracerConf
-  { tempAbsPath   :: FilePath
+  { tempAbsPath :: FilePath
   , testnetMagic :: Int
-  , logPath :: FilePath
   , logFormat :: LogFormat
   } deriving (Eq, Show)
 
-mkConfig :: CardanoTracerConf -> Int -> FilePath -> TracerConfig
-mkConfig CardanoTracerConf { testnetMagic, logPath, logFormat } port socketPath = TracerConfig
+mkConfig :: CardanoTracerConf -> Int -> FilePath ->  FilePath -> TracerConfig
+mkConfig CardanoTracerConf { testnetMagic, logFormat } port logFile socketFile = TracerConfig
   { networkMagic = fromIntegral testnetMagic
-  , network = AcceptAt $ LocalPipe socketPath
+  , network = AcceptAt $ LocalPipe socketFile
   , loRequestNum = Nothing
   , ekgRequestFreq = Nothing
   , hasEKG = Nothing
@@ -46,7 +45,7 @@ mkConfig CardanoTracerConf { testnetMagic, logPath, logFormat } port socketPath 
   , hasTimeseries = Nothing
   , tlsCertificate = Nothing
   , hasForwarding = Nothing
-  , logging = LoggingParams logPath FileMode logFormat :| []
+  , logging = LoggingParams logFile FileMode logFormat :| []
   , rotation = Nothing
   , verbosity = Nothing
   , metricsNoSuffix = Nothing
@@ -56,21 +55,23 @@ mkConfig CardanoTracerConf { testnetMagic, logPath, logFormat } port socketPath 
   , prometheusLabels = Nothing
   }
 
-withCardanoTracer :: CardanoTracerConf -> (FilePath -> Integration ()) -> Integration ()
+withCardanoTracer :: CardanoTracerConf -> (FilePath -> Integration r) -> Integration r
 withCardanoTracer conf@CardanoTracerConf{tempAbsPath} k = do
-  let logDir = makeLogDir $ TmpAbsolutePath tempAbsPath
-      tempBaseAbsPath = makeTmpBaseAbsPath $ TmpAbsolutePath tempAbsPath
-      socketPath = undefined
+  let tmpPath = TmpAbsolutePath tempAbsPath
+      logDir = makeLogDir tmpPath
+      tempBaseAbsPath = makeTmpBaseAbsPath tmpPath
 
   nodeStdoutFile <- H.noteTempFile logDir "cardano-tracer.stdout.log"
   nodeStderrFile <- H.noteTempFile logDir "cardano-tracer.stderr.log"
+  logFile <- H.noteTempFile logDir "cardano-tracer.log"
+  socketFile <- H.noteTempFile (makeSocketDir tmpPath) "socket"
+  configFile <- H.noteTempFile tempAbsPath "cardano-tracer-config.json"
 
   hNodeStdout <- H.evalIO $ IO.openFile nodeStdoutFile IO.WriteMode
   hNodeStderr <- H.evalIO $ IO.openFile nodeStderrFile IO.WriteMode
 
   [prometheusPort] <- H.evalIO $ IO.allocateRandomPorts 1
-  let configFile = undefined
-  H.evalIO $ encodeFile configFile $ mkConfig conf prometheusPort socketPath
+  H.evalIO $ encodeFile configFile $ mkConfig conf prometheusPort logFile socketFile
 
   cp <- procCardanoTracer $
     [ "--config", configFile
@@ -87,6 +88,7 @@ withCardanoTracer conf@CardanoTracerConf{tempAbsPath} k = do
   H.noteShow_ =<< H.getPid hProcess
 
   H.evalIO $ putStrLn $ "Prometheus is running at http://localhost:" <> show prometheusPort
-  k socketPath
+  r <- k socketFile
 
   H.evalIO $ IO.terminateProcess hProcess
+  pure r
