@@ -58,13 +58,22 @@ import           Ouroboros.Network.ConnectionId (ConnectionId)
 import qualified Ouroboros.Network.Diffusion as Diffusion
 
 import           Codec.CBOR.Read (DeserialiseFailure)
+import           Control.Exception (SomeException(..), try)
 import           Control.Monad (unless)
+import           Control.Monad.IO.Class (MonadIO (..))
 import           Cardano.Network.OrphanInstances ()
 import           Data.Aeson (ToJSON (..))
+import qualified Data.ByteString.Char8 as BSC
+import qualified Data.ByteString.Lazy as BSL
+import           Data.Maybe (fromMaybe)
 import           Data.Proxy (Proxy (..))
+import qualified Data.Text as T
+import           Debug.Trace (traceM)
+import qualified Network.HTTP.Client as Http
 import           Network.Mux.Trace (TraceLabelPeer (..))
 import qualified Network.Mux.Trace as Mux
 import           Network.Mux.Tracing ()
+import           System.Environment (lookupEnv)
 
 import Ouroboros.Consensus.Block.SupportsPeras (PerasError)
 
@@ -364,6 +373,10 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
     !txPerasCertInclusion <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Cert", "Inclusion"]
     !txPerasVoteForging <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Vote", "Forging"]
 
+    nodeId <- fmap (fromMaybe "unknown-node") $ liftIO $ lookupEnv "NODE_ID"
+    manager <- Http.newManager Http.defaultManagerSettings
+      { Http.managerResponseTimeout = Http.responseTimeoutMicro 10000  -- 10ms
+      }
 
     configureTracers configReflection trConfig [txCountersTracer]
 
@@ -425,6 +438,39 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
       , Consensus.perasVoteDiffusionOutboundTracer = mkTracer $ traceWith txPerasVoteOut
       , Consensus.perasCertInclusionTracer = mkTracer $ traceWith txPerasCertInclusion
       , Consensus.perasVoteForgingTracer = mkTracer $ traceWith txPerasVoteForging
+      , Consensus.testnetTracer = mkTracer $ \case
+          Consensus.DebugLog logMsg -> do
+            traceM $ mconcat [ "[Testnet Debug]: " <> T.unpack logMsg ]
+            let pairStr k v = (BSC.pack k, Just (BSC.pack v))
+                queryPairs =
+                    [ pairStr "node_id" nodeId
+                    , pairStr "message" $ T.unpack logMsg
+                    ]
+            baseRequest <- Http.parseRequest "http://localhost:9000/log"
+            let request = Http.setQueryString queryPairs baseRequest
+            responseResult <- try (Http.httpLbs request manager) :: IO (Either SomeException (Http.Response BSL.ByteString))
+            case responseResult of
+                Left _ -> pure ()
+                Right _ -> pure ()
+          Consensus.AdvertLog numCerts numVotes chainLen boost slotNo blockHashStr blockNum -> do
+            baseRequest <- Http.parseRequest "http://localhost:9000/advert"
+            let pairStr k v = (BSC.pack k, Just $ BSC.pack v)
+                pair k v = pairStr k (show v)
+                request = Http.setQueryString
+                            [ pairStr "node_id" nodeId
+                            , pair "num_certs" numCerts
+                            , pair "num_votes" numVotes
+                            , pair "chain_len" chainLen
+                            , pair "peras_boost" boost
+                            , pair "slot_no" slotNo
+                            , pairStr "block_hash" blockHashStr
+                            , pair "block_no" blockNum
+                            ]
+                            baseRequest
+            responseResult <- try (Http.httpLbs request manager) :: IO (Either SomeException (Http.Response BSL.ByteString))
+            case responseResult of
+                Left _ -> pure ()
+                Right _ -> pure ()
       }
 
 mkNodeToClientTracers :: forall blk.
