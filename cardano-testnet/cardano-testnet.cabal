@@ -60,10 +60,8 @@ library
                       , cardano-node
                       , cardano-diffusion:ping ^>= 1.1
                       , cardano-prelude
+                      , cardano-tracer
                       , cardano-rpc
-                      , contra-tracer
-                      , containers
-                      , data-default-class
                       , containers
                       , contra-tracer
                       , data-default-class
@@ -112,6 +110,7 @@ library
   exposed-modules:      Cardano.Testnet
                         Parsers.Run
                         Testnet.Blockfrost
+                        Testnet.CardanoTracer
                         Testnet.ChainWatchdog
                         Testnet.Components.Configuration
                         Testnet.Components.Query
