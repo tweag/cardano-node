@@ -74,7 +74,7 @@ withCardanoTracer conf@CardanoTracerConf{tempAbsPath} k = do
   [prometheusPort] <- H.evalIO $ IO.allocateRandomPorts 1
   H.evalIO $ encodeFile configFile $ mkConfig conf prometheusPort logFile socketFile
 
-  cp <- procCardanoTracer $
+  cp <- procCardanoTracer
     [ "--config", configFile
     ]
 
