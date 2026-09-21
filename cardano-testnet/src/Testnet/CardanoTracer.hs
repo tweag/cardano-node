@@ -6,7 +6,7 @@
 
 module Testnet.CardanoTracer
   ( CardanoTracerConf (..)
-  , withCardanoTracer
+  , startCardanoTracer
   ) where
 
 
@@ -16,19 +16,26 @@ import           Cardano.Tracer.Configuration
 
 import           Prelude
 
+import           Control.Monad.Catch (MonadCatch)
+import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.Trans.Except (runExceptT)
+import           Control.Monad.Trans.Resource (MonadResource)
 import           Data.Aeson (encodeFile)
 import           Data.List.NonEmpty (NonEmpty(..))
+import           GHC.Stack (HasCallStack)
+import qualified GHC.Stack as GHC
 import           System.Directory (createDirectoryIfMissing)
+import           System.FilePath ((</>))
 import qualified System.IO as IO
 import qualified System.Process as IO
+import           System.Process (ProcessHandle)
 
-import           Testnet.Process.Run (procCardanoTracer)
+import           Testnet.Process.RunIO (procFlex)
+import           Testnet.Process.Run (initiateProcess)
 
-import qualified Hedgehog as H
-import           Hedgehog.Extras (Integration)
 import qualified Hedgehog.Extras.Stock.IO.Network.Socket as IO
-import qualified Hedgehog.Extras.Test.Base as H
-import qualified Hedgehog.Extras.Test.Process as H
+
+import           RIO (runRIO, throwString)
 
 data CardanoTracerConf = CardanoTracerConf
   { tempAbsPath :: FilePath
@@ -57,43 +64,51 @@ mkConfig CardanoTracerConf { testnetMagic, logFormat } port logFile socketFile =
   , prometheusLabels = Nothing
   }
 
-withCardanoTracer :: CardanoTracerConf -> (FilePath -> Integration r) -> Integration r
-withCardanoTracer conf@CardanoTracerConf{tempAbsPath} k = do
+-- | Start a @cardano-tracer@ process, returning the (working-directory relative)
+-- path to the socket that testnet nodes should connect to, together with the
+-- process handle of the spawned tracer.
+startCardanoTracer
+  :: HasCallStack
+  => MonadResource m
+  => MonadCatch m
+  => CardanoTracerConf
+  -> m (FilePath, ProcessHandle)
+startCardanoTracer conf@CardanoTracerConf{tempAbsPath} = GHC.withFrozenCallStack $ do
   let tmpPath = TmpAbsolutePath tempAbsPath
       logDir = makeLogDir tmpPath
       tempBaseAbsPath = makeTmpBaseAbsPath tmpPath
 
-  H.evalIO $ do
+  liftIO $ do
     createDirectoryIfMissing True logDir
     createDirectoryIfMissing True $ makeSocketDir tmpPath
-  nodeStdoutFile <- H.noteTempFile logDir "cardano-tracer.stdout.log"
-  nodeStderrFile <- H.noteTempFile logDir "cardano-tracer.stderr.log"
-  logFile <- H.noteTempFile logDir "cardano-tracer.log"
-  socketFile <- H.noteTempFile (makeSocketDir tmpPath) defaultSocketName
-  configFile <- H.noteTempFile tempAbsPath "cardano-tracer-config.json"
 
-  hNodeStdout <- H.evalIO $ IO.openFile nodeStdoutFile IO.WriteMode
-  hNodeStderr <- H.evalIO $ IO.openFile nodeStderrFile IO.WriteMode
+  let nodeStdoutFile = logDir </> "cardano-tracer.stdout.log"
+      nodeStderrFile = logDir </> "cardano-tracer.stderr.log"
+      logFile = logDir </> "cardano-tracer.log"
+      -- The socket path is relative to the working directory shared by the
+      -- tracer and the nodes ('tempBaseAbsPath').
+      socketFile = makeSocketDir tmpPath </> defaultSocketName
+      configFile = tempAbsPath </> "cardano-tracer-config.json"
 
-  [prometheusPort] <- H.evalIO $ IO.allocateRandomPorts 1
-  H.evalIO $ encodeFile configFile $ mkConfig conf prometheusPort logFile socketFile
+  hNodeStdout <- liftIO $ IO.openFile nodeStdoutFile IO.WriteMode
+  hNodeStderr <- liftIO $ IO.openFile nodeStderrFile IO.WriteMode
 
-  cp <- procCardanoTracer
+  prometheusPort <- fmap head $ liftIO $ IO.allocateRandomPorts 1
+  liftIO $ encodeFile configFile $ mkConfig conf prometheusPort logFile socketFile
+
+  cp <- runRIO () $ procFlex "cardano-tracer" "CARDANO_TRACER"
     [ "--config", configFile
     ]
 
-  (_, _, _, hProcess, _) <- H.createProcess $ cp
+  eResult <- runExceptT . initiateProcess $ cp
     { IO.std_in = IO.CreatePipe
     , IO.std_out = IO.UseHandle hNodeStdout
     , IO.std_err = IO.UseHandle hNodeStderr
     , IO.cwd = Just tempBaseAbsPath
     }
+  hProcess <- case eResult of
+    Left err -> throwString $ "Could not start cardano-tracer: " <> show err
+    Right (_, _, _, hProcess, _) -> pure hProcess
 
-  H.onFailure $ H.evalIO $ IO.terminateProcess hProcess
-  H.noteShow_ =<< H.getPid hProcess
-
-  H.evalIO $ putStrLn $ "Prometheus is running at http://localhost:" <> show prometheusPort
-  r <- k socketFile
-
-  H.evalIO $ IO.terminateProcess hProcess
-  pure r
+  liftIO $ putStrLn $ "Prometheus is running at http://localhost:" <> show prometheusPort
+  pure (socketFile, hProcess)
