@@ -48,6 +48,10 @@ packages:
   bench/trace-schemas/scripts/schema-gen
   trace-forward
 
+-- For Peras local dev env
+optional-packages:
+  ../ouroboros-consensus
+
 -- Needed when cross compiling
 extra-packages: alex, dmq-node >= 0.4.2.0
 
@@ -155,14 +159,6 @@ source-repository-package
 
 source-repository-package
   type: git
-  location: https://github.com/IntersectMBO/ouroboros-consensus
-  tag: 835d3747eb2fbd6b7d69e73245ec7c9703faec21
-  --sha256: sha256-ZDAPypcfLn7xzUyxcI7ktHxnvUKtPEHcPR522+c04Ao=
-  subdir:
-    .
-
-source-repository-package
-  type: git
   location: https://github.com/well-typed/grapesy
   tag: bd6af64f69ff89e3a8fc02e2c81262e648f4715d
   --sha256: sha256-4F+bUoytvrgOcQ8aIWbOY9uYsPoTZwQOlmh7ckgyK9M=
@@ -192,3 +188,22 @@ source-repository-package
   --sha256: sha256-3maT6ogGaR9WJXsC0OZpvpLS2uv9JvWoJp5klSSLH6I=
   subdir:
     cardano-cli
+
+source-repository-package
+  type: git
+  location: https://github.com/IntersectMBO/ouroboros-network.git
+  tag: 09495ae9e6a063929ac9f2a8a80d210735c3a66e
+  --sha256: sha256-/m3CUFKSnTw8YpyIMhcpdVbHWu6FEqjiQFiPORWLFFI=
+  subdir:
+    ouroboros-network
+    cardano-diffusion
+    network-mux
+
+-- NOTE: keep ouroboros overrides at the end of the file, the cardano-peras testnet dev env depends on that 
+source-repository-package
+  type: git
+  location: https://github.com/tweag/ouroboros-consensus
+  tag: 7b8ee9bb54fc4359a1e96d9920eda5b70917ef88
+  --sha256: sha256-gH2pD9l7p5W5DlNj5oDnJp1xar+xI7NPEXMtOABFwiM=
+  subdir:
+    .

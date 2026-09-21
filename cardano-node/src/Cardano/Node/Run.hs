@@ -746,7 +746,7 @@ updateLedgerPeerSnapshot startupTracer NodeConfiguration { ncConsensusMode } net
             | otherwise -> oops $
                 "NetworkMagic " <> showT networkMagic <> " doesn't match "
                 <> "peer snapshot NetworkMagic " <> showT magic
-          LedgerPeerSnapshotV2 {} -> oops "Unsupported legacy peer snapshot version."
+--          LedgerAllPeerSnapshotV23 {} -> oops "Unsupported legacy peer snapshot version."
         case afterSlot of
           Always -> do
             traceL $ LedgerPeerSnapshotLoaded fileSlot
