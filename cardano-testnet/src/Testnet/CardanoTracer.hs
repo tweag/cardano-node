@@ -18,6 +18,7 @@ import           Prelude
 
 import           Data.Aeson (encodeFile)
 import           Data.List.NonEmpty (NonEmpty(..))
+import           System.Directory (createDirectoryIfMissing)
 import qualified System.IO as IO
 import qualified System.Process as IO
 
@@ -62,6 +63,9 @@ withCardanoTracer conf@CardanoTracerConf{tempAbsPath} k = do
       logDir = makeLogDir tmpPath
       tempBaseAbsPath = makeTmpBaseAbsPath tmpPath
 
+  H.evalIO $ do
+    createDirectoryIfMissing True logDir
+    createDirectoryIfMissing True $ makeSocketDir tmpPath
   nodeStdoutFile <- H.noteTempFile logDir "cardano-tracer.stdout.log"
   nodeStderrFile <- H.noteTempFile logDir "cardano-tracer.stderr.log"
   logFile <- H.noteTempFile logDir "cardano-tracer.log"

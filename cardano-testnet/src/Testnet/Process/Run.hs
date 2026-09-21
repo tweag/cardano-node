@@ -209,7 +209,7 @@ procCardanoTracer
   -- ^ Arguments to the CLI command
   -> m CreateProcess
   -- ^ Captured stdout
-procCardanoTracer = GHC.withFrozenCallStack $ H.procFlex "cardano-submit-api" "CARDANO_TRACER"
+procCardanoTracer = GHC.withFrozenCallStack $ H.procFlex "cardano-tracer" "CARDANO_TRACER"
 
 -- | Create a 'CreateProcess' describing how to start the cardano-node-chairman process
 -- and an argument list.
