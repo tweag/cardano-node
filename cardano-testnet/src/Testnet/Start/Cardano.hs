@@ -57,7 +57,7 @@ import           Control.Monad (forM, forM_, guard, replicateM, unless, when)
 import           Control.Monad.Catch
 import           Control.Monad.Trans.Maybe (runMaybeT)
 import           Control.Monad.Trans.Resource (MonadResource, getInternalState)
-import           Data.Aeson
+import           Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.Aeson.Encode.Pretty as A
 import qualified Data.ByteString.Base16 as B16
@@ -294,6 +294,9 @@ cardanoTestnet
       , testnetMagic = testnetMagic
       , logFormat = ForHuman
       }
+
+  forM_ mTracer $ const $
+    liftIOAnnotated $ enableTraceForwarding nodeConfigFile
 
   wallets <- forM [1..3] $ \idx -> do
     let utxoKeys@KeyPair{verificationKey} = makePathsAbsolute $ Defaults.defaultUtxoKeys idx
@@ -602,6 +605,17 @@ cardanoTestnet
             , "time is set only ", show startTimeOffsetSeconds, "s after the testnet files are "
             , "created."
             ]
+
+-- | Rewrite the node configuration file at the given path so that its
+-- @TraceOptions@ enables the @Forwarder@ backend. This is required for nodes
+-- to actually forward their traces and metrics to cardano-tracer.
+enableTraceForwarding :: FilePath -> IO ()
+enableTraceForwarding configFile = do
+  Aeson.eitherDecodeFileStrict configFile >>= \case
+    Left err -> throwString $ "enableTraceForwarding: could not decode node configuration file " <> configFile <> ": " <> err
+    Right (config :: Aeson.KeyMap Aeson.Value) -> do
+      let config' = Aeson.insert "TraceOptions" Defaults.traceOptionsForwarding config
+      Aeson.encodeFile configFile config'
 
 -- | Slack on top of the worst legitimate first-block time ('startTimeOffsetSeconds'
 -- plus the forecast horizon) when waiting for testnet startup: covers node process

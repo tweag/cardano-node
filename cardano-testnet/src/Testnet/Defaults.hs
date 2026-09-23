@@ -56,6 +56,7 @@ module Testnet.Defaults
   , defaultShelleyGenesis
   , defaultGenesisFilepath
   , defaultYamlHardforkViaConfig
+  , traceOptionsForwarding
   , defaultMainnetTopology
   , defaultUtxoKeys
   , plutusV2Script
@@ -199,6 +200,21 @@ defaultConwayGenesis = do
 -- when new eras roll out.
 defaultEra :: ShelleyBasedEra Api.ConwayEra
 defaultEra = ShelleyBasedEraConway
+
+-- | A @TraceOptions@ that enables the @Forwarder@ backend; allowing nodes to
+-- forward their traces and metrics to cardano-tracer.
+traceOptionsForwarding :: Aeson.Value
+traceOptionsForwarding =
+  Aeson.object
+    [ "" .= Aeson.object
+      [ "backends" .= Aeson.Array
+        [ "Forwarder"
+        , "EKGBackend"
+        ]
+      , "detail" .= toJSON @String "DNormal"
+      , "severity" .= toJSON @String "Notice"
+      ]
+    ]
 
 -- | Configuration value that allows you to hardfork to any Cardano era
 -- at epoch 0.
