@@ -80,11 +80,10 @@ startCardanoTracer conf@CardanoTracerConf{tempAbsPath} = GHC.withFrozenCallStack
 
   liftIO $ do
     createDirectoryIfMissing True logDir
-    createDirectoryIfMissing True $ makeSocketDir tmpPath
+    createDirectoryIfMissing True $ tempAbsPath </> makeSocketDir tmpPath
 
   let nodeStdoutFile = logDir </> "cardano-tracer.stdout.log"
       nodeStderrFile = logDir </> "cardano-tracer.stderr.log"
-      logFile = logDir </> "cardano-tracer.log"
       -- The socket path is relative to the working directory shared by the
       -- tracer and the nodes ('tempBaseAbsPath').
       socketFile = makeSocketDir tmpPath </> defaultSocketName
@@ -94,7 +93,7 @@ startCardanoTracer conf@CardanoTracerConf{tempAbsPath} = GHC.withFrozenCallStack
   hNodeStderr <- liftIO $ IO.openFile nodeStderrFile IO.WriteMode
 
   prometheusPort <- fmap head $ liftIO $ IO.allocateRandomPorts 1
-  liftIO $ encodeFile configFile $ mkConfig conf prometheusPort logFile socketFile
+  liftIO $ encodeFile configFile $ mkConfig conf prometheusPort logDir socketFile
 
   cp <- runRIO () $ procFlex "cardano-tracer" "CARDANO_TRACER"
     [ "--config", configFile

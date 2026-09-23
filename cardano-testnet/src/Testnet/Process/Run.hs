@@ -201,7 +201,7 @@ procSubmitApi
   -- ^ Captured stdout
 procSubmitApi = GHC.withFrozenCallStack $ H.procFlex "cardano-submit-api" "CARDANO_SUBMIT_API"
 
--- | Create a 'CreateProcess' describing how to start the cardano-submit-api process
+-- | Create a 'CreateProcess' describing how to start the cardano-tracer process
 -- and an argument list.
 procCardanoTracer
   :: (MonadTest m, MonadCatch m, MonadIO m, HasCallStack)
