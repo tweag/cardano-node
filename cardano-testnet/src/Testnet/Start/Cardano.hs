@@ -268,8 +268,7 @@ cardanoTestnet
   Conf
     { tempAbsPath=TmpAbsolutePath tmpAbsPath
     , updateTimestamps
-    }
-  = do
+    } = do
   let nPools = NumPools $ NEL.length cardanoSpoNodes
       allNodes = map (True,) (NEL.toList cardanoSpoNodes) ++ map (False,) cardanoRelayNodes
       nodeConfigFile = tmpAbsPath </> defaultConfigFile
@@ -665,10 +664,10 @@ createAndRunTestnet :: ()
   -> TestnetRuntimeOptions
   -> Conf -- ^ Path to the test sandbox
   -> H.Integration TestnetRuntime
-createAndRunTestnet creationOptions runtimeOptions conf
-  = liftToIntegration $ do
-      createTestnetEnv creationOptions conf
-      cardanoTestnet (creationNodes creationOptions) runtimeOptions conf
+createAndRunTestnet creationOptions runtimeOptions conf = do
+  liftToIntegration $ do
+    createTestnetEnv creationOptions conf
+    cardanoTestnet (creationNodes creationOptions) runtimeOptions conf
 
 -- | Retry an action when `NodeAddressAlreadyInUseError` gets thrown from an action
 retryOnAddressInUseError
