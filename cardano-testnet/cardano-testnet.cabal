@@ -60,10 +60,8 @@ library
                       , cardano-node
                       , cardano-diffusion:ping ^>= 1.3
                       , cardano-prelude
+                      , cardano-tracer
                       , cardano-rpc
-                      , contra-tracer
-                      , containers
-                      , data-default-class
                       , containers
                       , contra-tracer
                       , data-default-class
@@ -113,6 +111,7 @@ library
   exposed-modules:      Cardano.Testnet
                         Parsers.Run
                         Testnet.Blockfrost
+                        Testnet.CardanoTracer
                         Testnet.ChainWatchdog
                         Testnet.Components.Configuration
                         Testnet.Components.Query
@@ -226,6 +225,7 @@ test-suite cardano-testnet-test
                         Cardano.Testnet.Test.Cli.Transaction.WithdrawalReward
                         Cardano.Testnet.Test.Dijkstra.NestedTransaction
                         Cardano.Testnet.Test.DumpConfig
+                        Cardano.Testnet.Test.EnableTracer
                         Cardano.Testnet.Test.FoldEpochState
                         Cardano.Testnet.Test.Gov.CommitteeAddNew
                         Cardano.Testnet.Test.Gov.DRepActivity
@@ -312,4 +312,5 @@ test-suite cardano-testnet-test
   build-tool-depends:   cardano-node:cardano-node
                       , cardano-cli:cardano-cli
                       , cardano-submit-api:cardano-submit-api
+                      , cardano-tracer:cardano-tracer
                       , cardano-testnet:cardano-testnet
