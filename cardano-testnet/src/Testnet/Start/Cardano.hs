@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE NumericUnderscores #-}
@@ -45,6 +46,7 @@ import           Cardano.Node.Configuration.TopologyP2P ()
 import           Cardano.Node.Testnet.Paths (defaultConfigFile, defaultNodeEnvFile, defaultPortFile,
                    defaultUtxoAddrPath)
 import           Cardano.Prelude (NonEmpty ((:|)), canonicalEncodePretty, readMaybe)
+import           Cardano.Tracer.Configuration (LogFormat(..))
 import           Ouroboros.Network.PeerSelection.RelayAccessPoint (RelayAccessPoint (..))
 
 import           Prelude hiding (lines)
@@ -55,7 +57,7 @@ import           Control.Monad (forM, forM_, guard, replicateM, unless, when)
 import           Control.Monad.Catch
 import           Control.Monad.Trans.Maybe (runMaybeT)
 import           Control.Monad.Trans.Resource (MonadResource, getInternalState)
-import           Data.Aeson
+import           Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as Aeson
 import qualified Data.Aeson.Encode.Pretty as A
 import qualified Data.ByteString.Base16 as B16
@@ -85,6 +87,7 @@ import qualified System.Process as Process
 
 import qualified Ouroboros.Consensus.Committee.Crypto.BLS as BLS
 
+import           Testnet.CardanoTracer (CardanoTracerConf(..), startCardanoTracer)
 import           Testnet.ChainWatchdog (chainForecastHorizon, chainStallWatchdog, stderrTracer)
 import           Testnet.Components.Configuration
 import qualified Testnet.Defaults as Defaults
@@ -258,6 +261,7 @@ cardanoTestnet
   TestnetRuntimeOptions
     { runtimeEnableNewEpochStateLogging=enableNewEpochStateLogging
     , runtimeEnableRpc=cardanoEnableRpc
+    , runtimeEnableTracer=cardanoEnableTracer
     , runtimeKESSource=cardanoKESSource
     , runtimeEnableChainStallWatchdog=enableChainStallWatchdog
     }
@@ -277,6 +281,21 @@ cardanoTestnet
           Right sg -> return sg
           Left err -> throwString $ "Could not decode shelley genesis file: " <> shelleyGenesisFile <> " Error: " <> err
   let testnetMagic :: Int = fromIntegral sgNetworkMagic
+
+  -- Optionally start a cardano-tracer, and remember the socket that the nodes
+  -- should connect to. The tracer's lifetime is tied to the surrounding
+  -- 'MonadResource' scope, and it is additionally interrupted on SIGINT
+  -- alongside the nodes (see 'interruptNodesOnSigINT' below).
+  mTracer <- case cardanoEnableTracer of
+    TraceDisabled -> pure Nothing
+    TraceEnabled -> fmap Just . startCardanoTracer $ CardanoTracerConf
+      { tempAbsPath = tmpAbsPath
+      , testnetMagic = testnetMagic
+      , logFormat = ForHuman
+      }
+
+  forM_ mTracer $ const $
+    liftIOAnnotated $ enableTraceForwarding nodeConfigFile
 
   wallets <- forM [1..3] $ \idx -> do
     let utxoKeys@KeyPair{verificationKey} = makePathsAbsolute $ Defaults.defaultUtxoKeys idx
@@ -450,6 +469,7 @@ cardanoTestnet
         <> spoNodeCliArgs
         <> nodeExtraCliArgs nodeWithOptions
         <> grpcArgs
+        <> maybe [] (\(socket, _) -> ["--tracer-socket-path-connect", socket]) mTracer
 
     -- cardano-node swallows a gRPC HTTP bind failure silently (no stderr, exit 0), so a
     -- successfully-started node can still have a dead endpoint; probe it before trusting it.
@@ -481,8 +501,9 @@ cardanoTestnet
   testnetNodes' <- maybe (throwString "cardanoTestnet: no testnet nodes were configured") pure $
     NEL.nonEmpty startedNodes
 
-  -- Interrupt cardano nodes when the main process is interrupted
-  liftIOAnnotated $ interruptNodesOnSigINT testnetNodes'
+  -- Interrupt cardano nodes (and the cardano-tracer, if any) when the main
+  -- process is interrupted
+  liftIOAnnotated $ interruptNodesOnSigINT (maybe [] (pure . snd) mTracer) testnetNodes'
 
 
   -- Make sure that all nodes are healthy by waiting for a chain extension.
@@ -584,6 +605,17 @@ cardanoTestnet
             , "created."
             ]
 
+-- | Rewrite the node configuration file at the given path so that its
+-- @TraceOptions@ enables the @Forwarder@ backend. This is required for nodes
+-- to actually forward their traces and metrics to cardano-tracer.
+enableTraceForwarding :: FilePath -> IO ()
+enableTraceForwarding configFile = do
+  Aeson.eitherDecodeFileStrict configFile >>= \case
+    Left err -> throwString $ "enableTraceForwarding: could not decode node configuration file " <> configFile <> ": " <> err
+    Right (config :: Aeson.KeyMap Aeson.Value) -> do
+      let config' = Aeson.insert "TraceOptions" Defaults.traceOptionsForwarding config
+      Aeson.encodeFile configFile config'
+
 -- | Slack on top of the worst legitimate first-block time ('startTimeOffsetSeconds'
 -- plus the forecast horizon) when waiting for testnet startup: covers node process
 -- startup (spawning, parsing the configuration and genesis files, creating the
@@ -634,8 +666,8 @@ createAndRunTestnet :: ()
   -> H.Integration TestnetRuntime
 createAndRunTestnet creationOptions runtimeOptions conf = do
   liftToIntegration $ do
-     createTestnetEnv creationOptions conf
-     cardanoTestnet (creationNodes creationOptions) runtimeOptions conf
+    createTestnetEnv creationOptions conf
+    cardanoTestnet (creationNodes creationOptions) runtimeOptions conf
 
 -- | Retry an action when `NodeAddressAlreadyInUseError` gets thrown from an action
 retryOnAddressInUseError
