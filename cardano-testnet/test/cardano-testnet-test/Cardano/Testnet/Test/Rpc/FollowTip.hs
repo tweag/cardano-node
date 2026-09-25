@@ -141,8 +141,12 @@ hprop_rpc_follow_tip = integrationRetryWorkspace 2 "rpc-follow-tip" $ \tempAbsBa
     resetRef ^. U5c.slot H.=== 0
     H.assertWith (resetRef ^. U5c.hash) BS.null
 
-    tipAfterReset <- H.nothingFail (resetMsg ^. U5c.maybe'tip)
-    H.assertWith (tipAfterReset ^. U5c.hash) $ (== 32) . BS.length
+    -- There's a race here; if the node has received a block before it receives
+    -- this reset message, it will include a tip. But this is not guaranteed!
+    -- So we check the tip invariant only if we receive one.
+    case resetMsg ^. U5c.maybe'tip of
+      Nothing -> H.note_ "Origin reset carried no tip: chain still at origin, as expected"
+      Just tipAfterReset -> H.assertWith (tipAfterReset ^. U5c.hash) $ (== 32) . BS.length
 
     H.note_ "Subsequent messages are apply actions carrying non-empty native bytes and a populated header"
     _block1 <- assertAppliedBlock apply1
