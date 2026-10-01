@@ -82,12 +82,12 @@ import qualified Data.Time.Clock as DTC
 import           GHC.Exts (fromList)
 import           GHC.Stack
 import qualified System.Directory as IO
-import           System.FilePath ((</>), (<.>))
+import           System.FilePath ((</>), dropExtension)
 import qualified System.Process as Process
 
 import qualified Ouroboros.Consensus.Committee.Crypto.BLS as BLS
 
-import           Testnet.CardanoTracer (CardanoTracerConf(..), startCardanoTracer)
+import           Testnet.CardanoTracer (CardanoTracerConf(..), CardanoTracerRuntime(..), startCardanoTracer)
 import           Testnet.ChainWatchdog (chainForecastHorizon, chainStallWatchdog, stderrTracer)
 import           Testnet.Components.Configuration
 import qualified Testnet.Defaults as Defaults
@@ -103,6 +103,7 @@ import           Testnet.Types as TR hiding (shelleyGenesis)
 
 import qualified Hedgehog.Extras as H
 import           Hedgehog.Extras.Stock (sprocketSystemName)
+import           Hedgehog.Extras.Stock.IO.Network.Sprocket (sprocketArgumentName)
 import qualified Hedgehog.Extras.Stock.IO.Network.Port as H
 import           Hedgehog.Internal.Property (failException)
 
@@ -286,18 +287,19 @@ cardanoTestnet
   -- should connect to. The tracer's lifetime is tied to the surrounding
   -- 'MonadResource' scope, and it is additionally interrupted on SIGINT
   -- alongside the nodes (see 'interruptNodesOnSigINT' below).
-  mTracer <- case cardanoEnableTracer of
-    TraceDisabled -> pure Nothing
-    TraceEnabled -> fmap Just . startCardanoTracer $ CardanoTracerConf
-      { tempAbsPath = tmpAbsPath
-      , testnetMagic = testnetMagic
-      , logFormat = ForHuman
-      }
-
-  nodeConfigFile' <-
-    case mTracer of
-      Just{} -> liftIOAnnotated $ enableTraceForwarding nodeConfigFile
-      Nothing -> pure nodeConfigFile
+  (nodeConfigFile', mTracer) <- case cardanoEnableTracer of
+    TraceDisabled -> pure (nodeConfigFile, Nothing)
+    TraceEnabled -> do
+      cfgFile' <- liftIOAnnotated $ enableTraceForwarding nodeConfigFile
+      tracerRuntime <- startCardanoTracer $ CardanoTracerConf
+        { tempAbsPath = tmpAbsPath
+        , testnetMagic = testnetMagic
+        , logFormat = ForMachine
+        }
+      Ping.waitForSprocket 120 0.2 (tracerSprocket tracerRuntime) >>= \case
+        Left _ -> throwString $ "Sprocket of cardano-tracer did not come up."
+        Right _ -> pure ()
+      pure (cfgFile', Just tracerRuntime)
 
 
 
@@ -473,7 +475,7 @@ cardanoTestnet
         <> spoNodeCliArgs
         <> nodeExtraCliArgs nodeWithOptions
         <> grpcArgs
-        <> maybe [] (\(socket, _) -> ["--tracer-socket-path-connect", socket]) mTracer
+        <> maybe [] (\rt -> ["--tracer-socket-path-connect", sprocketArgumentName (tracerSprocket rt)]) mTracer
 
     -- cardano-node swallows a gRPC HTTP bind failure silently (no stderr, exit 0), so a
     -- successfully-started node can still have a dead endpoint; probe it before trusting it.
@@ -507,7 +509,7 @@ cardanoTestnet
 
   -- Interrupt cardano nodes (and the cardano-tracer, if any) when the main
   -- process is interrupted
-  liftIOAnnotated $ interruptNodesOnSigINT (maybe [] (pure . snd) mTracer) testnetNodes'
+  liftIOAnnotated $ interruptNodesOnSigINT (maybe [] (pure . tracerHandle) mTracer) testnetNodes'
 
 
   -- Make sure that all nodes are healthy by waiting for a chain extension.
@@ -529,6 +531,7 @@ cardanoTestnet
         , testnetNodes=testnetNodes'
         , wallets
         , delegators = []
+        , prometheusPort = fmap (\CardanoTracerRuntime{prometheusPort} -> prometheusPort) mTracer
         }
 
   -- The chain can also stall irrecoverably later, at any point of the test, if an
@@ -619,7 +622,7 @@ enableTraceForwarding configFile = do
     Left err -> throwString $ "enableTraceForwarding: could not decode node configuration file " <> configFile <> ": " <> show err
     Right (config :: KeyMap.KeyMap Yaml.Value) -> do
       let config' = KeyMap.insertWith mergeTraceOptions "TraceOptions" Defaults.traceOptionsForwarding config
-      let configFile' = configFile <.> "tracer"
+      let configFile' = dropExtension configFile <> "-tracer.conf"
       Yaml.encodeFile configFile' config'
       pure configFile'
   where
@@ -639,7 +642,7 @@ enableTraceForwarding configFile = do
         . copyIfMissing "severity"
         $ existing
       where
-        copyIfMissing key = maybe id (KeyMap.insert key) $ KeyMap.lookup key forwarding
+        copyIfMissing key = maybe id (KeyMap.insertWith (\_new old -> old) key) $ KeyMap.lookup key forwarding
     mergeNamespace forwarding _ = forwarding
 
     mergeBackends :: Maybe Yaml.Value -> Maybe Yaml.Value -> Yaml.Value
