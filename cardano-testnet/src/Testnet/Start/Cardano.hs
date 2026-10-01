@@ -82,7 +82,7 @@ import qualified Data.Time.Clock as DTC
 import           GHC.Exts (fromList)
 import           GHC.Stack
 import qualified System.Directory as IO
-import           System.FilePath ((</>))
+import           System.FilePath ((</>), (<.>))
 import qualified System.Process as Process
 
 import qualified Ouroboros.Consensus.Committee.Crypto.BLS as BLS
@@ -294,8 +294,12 @@ cardanoTestnet
       , logFormat = ForHuman
       }
 
-  forM_ mTracer $ const $
-    liftIOAnnotated $ enableTraceForwarding nodeConfigFile
+  nodeConfigFile' <-
+    case mTracer of
+      Just{} -> liftIOAnnotated $ enableTraceForwarding nodeConfigFile
+      Nothing -> pure nodeConfigFile
+
+
 
   wallets <- forM [1..3] $ \idx -> do
     let utxoKeys@KeyPair{verificationKey} = makePathsAbsolute $ Defaults.defaultUtxoKeys idx
@@ -462,7 +466,7 @@ cardanoTestnet
     eRuntime <- runExceptT . retryOnAddressInUseError $
       startNode (TmpAbsolutePath tmpAbsPath) nodeName testnetDefaultIpv4Address port testnetMagic (nodeBin nodeWithOptions) (perasPublicKeysFile, perasOptions) $
         [ "run"
-        , "--config", nodeConfigFile
+        , "--config", nodeConfigFile'
         , "--topology", nodeDataDir </> "topology.json"
         , "--database-path", nodeDataDir </> "db"
         ]
@@ -515,11 +519,11 @@ cardanoTestnet
       _startupBlockTimeout =
         startTimeOffsetSeconds + ceiling startupHorizon + startupDetectionMarginSeconds
   {-
-  mapConcurrently_ (waitForBlockThrow startupHorizon startupBlockTimeout (File nodeConfigFile)) testnetNodes'
+  mapConcurrently_ (waitForBlockThrow startupHorizon startupBlockTimeout (File nodeConfigFile')) testnetNodes'
   -}
 
   let runtime = TestnetRuntime
-        { configurationFile = File nodeConfigFile
+        { configurationFile = File nodeConfigFile'
         , shelleyGenesisFile = tmpAbsPath </> Defaults.defaultGenesisFilepath ShelleyEra
         , testnetMagic
         , testnetNodes=testnetNodes'
@@ -605,16 +609,19 @@ cardanoTestnet
             , "created."
             ]
 
--- | Rewrite the node configuration file at the given path so that its
--- @TraceOptions@ enables the @Forwarder@ backend. This is required for nodes
--- to actually forward their traces and metrics to cardano-tracer.
-enableTraceForwarding :: FilePath -> IO ()
+-- | Copy and modify a node configuration file so that its @TraceOptions@
+-- enables the @Forwarder@ backend. This is required for nodes to actually
+-- forward their traces and metrics to cardano-tracer. Returns a path to the
+-- modified config file.
+enableTraceForwarding :: FilePath -> IO FilePath
 enableTraceForwarding configFile = do
   Yaml.decodeFileEither configFile >>= \case
     Left err -> throwString $ "enableTraceForwarding: could not decode node configuration file " <> configFile <> ": " <> show err
     Right (config :: KeyMap.KeyMap Yaml.Value) -> do
       let config' = KeyMap.insertWith mergeTraceOptions "TraceOptions" Defaults.traceOptionsForwarding config
-      Yaml.encodeFile configFile config'
+      let configFile' = configFile <.> "tracer"
+      Yaml.encodeFile configFile' config'
+      pure configFile'
   where
     mergeTraceOptions :: Yaml.Value -> Yaml.Value -> Yaml.Value
     mergeTraceOptions (Object forwarding) (Object existing) =
