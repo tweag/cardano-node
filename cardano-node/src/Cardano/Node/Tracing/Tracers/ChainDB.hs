@@ -110,6 +110,7 @@ instance (  LogFormatting (Header blk)
           , LogFormatting (ReasonForSwitch (TiebreakerView (BlockProtocol blk)))
           , Show (PerasError blk)
           , Show (PerasCert blk)
+          , Show (PerasVote blk)
           ) => LogFormatting (ChainDB.TraceEvent blk) where
   forHuman ChainDB.TraceLastShutdownUnclean        =
     "ChainDB is not clean. Validating all immutable chunks"
@@ -479,8 +480,6 @@ instance MetaTrace  (ChainDB.TraceEvent blk) where
                   (allNamespaces :: [Namespace (ImmDB.TraceEvent blk)])
           ++ map  (nsPrependInner "VolatileDbEvent")
                   (allNamespaces :: [Namespace (VolDB.TraceEvent blk)])
-          ++ map  (nsPrependInner "PerasVoteDbEvent")
-                  (allNamespaces :: [Namespace (PerasVoteDB.TraceEvent blk)])
           ++ map  (nsPrependInner "PerasCertDbEvent")
                   (allNamespaces :: [Namespace (PerasCertDB.TraceEvent blk)])
           ++ map  (nsPrependInner "PerasVoteDbEvent")
@@ -1710,7 +1709,7 @@ instance MetaTrace (PerasVoteDB.TraceEvent blk) where
   documentFor (Namespace _ ["GarbageCollected"]) = Just "GarbageCollected"
   documentFor _ = Nothing
 
-instance (Show (PerasCert blk)) => LogFormatting (PerasVoteDB.TraceEvent blk) where
+instance (Show (PerasCert blk), Show (PerasVote blk)) => LogFormatting (PerasVoteDB.TraceEvent blk) where
   forHuman (PerasVoteDB.AddVote voteId _vote result) =
     "Peras vote " <> Text.pack (show voteId) <> ": " <> Text.pack (show result)
   forHuman (PerasVoteDB.GarbageCollected slotNo) =
