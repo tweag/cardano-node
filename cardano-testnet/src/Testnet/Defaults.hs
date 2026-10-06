@@ -233,6 +233,7 @@ traceOptionsForwarding =
       [ "backends" .= Aeson.Array
         [ "Forwarder"
         , "EKGBackend"
+        , "Stdout MachineFormat"
         ]
       , "detail" .= toJSON @String "DNormal"
       , "severity" .= toJSON @String "Notice"
