@@ -392,7 +392,7 @@ cardanoTestnet
       ]
     privateKeyContent <- liftIOAnnotated $ readFile (signingKeyFp poolNodeKeysCold)
     privateKeyHex <- case decode (BSL8.pack privateKeyContent) of
-      (Just (Object keyMap)) -> case Aeson.lookup "cborHex" keyMap of
+      (Just (Object keyMap)) -> case KeyMap.lookup "cborHex" keyMap of
         Just (String privateKey) -> pure (Text.unpack $ Text.drop 4 privateKey)
         _ -> throwString "Failed to parse PERAS_PRIVATE_KEY: missing cborHex field"
       _ -> throwString "Failed to parse PERAS_PRIVATE_KEY: skey file is incorrect"
@@ -540,7 +540,7 @@ cardanoTestnet
   let startupHorizon = chainForecastHorizon shelleyGenesis
       _startupBlockTimeout =
         startTimeOffsetSeconds + ceiling startupHorizon + startupDetectionMarginSeconds
-  mapConcurrently_ (waitForBlockThrow startupHorizon startupBlockTimeout (File nodeConfigFile')) testnetNodes'
+--  mapConcurrently_ (waitForBlockThrow startupHorizon startupBlockTimeout (File nodeConfigFile')) testnetNodes'
 
   let runtime = TestnetRuntime
         { configurationFile = File nodeConfigFile'

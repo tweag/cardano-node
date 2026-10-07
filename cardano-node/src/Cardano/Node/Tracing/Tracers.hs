@@ -57,7 +57,6 @@ import qualified Ouroboros.Network.Diffusion as Diffusion
 import           Codec.CBOR.Read (DeserialiseFailure)
 import           Control.Exception (SomeException(..), try)
 import           Control.Monad (unless)
-import           "contra-tracer" Control.Tracer (Tracer (..), nullTracer)
 import           Control.Monad.IO.Class (MonadIO (..))
 import           Cardano.Network.OrphanInstances ()
 import           Data.Aeson (ToJSON (..))
@@ -74,12 +73,6 @@ import           Network.Mux.Tracing ()
 import           System.Environment (lookupEnv)
 
 import Ouroboros.Consensus.Block.SupportsPeras (PerasError)
-
-
--- | Wrap a tracing effect as a Tracer.
--- 'emit' from contra-tracer returns TracerA, not Tracer; 'arrow' wraps it.
-mkT :: Applicative m => (a -> m ()) -> Tracer m a
-mkT = arrow . emit
 
 -- | Construct tracers for all system components.
 --
@@ -371,21 +364,6 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
     !txCountersTracer  <-  mkCardanoTracer
                 trBase trForward mbTrEKG
                 ["txCounters", "Remote"]
- 
-    !txPerasCertIn <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Cert", "Inbound"]
-    !txPerasCertOut <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Cert", "Outbound"]
-    !txPerasVoteIn <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Vote", "Inbound"]
-    !txPerasVoteOut <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Vote", "Outbound"]
-    !txPerasCertInclusion <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Cert", "Inclusion"]
-    !txPerasVoteForging <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Vote", "Forging"]
-    -- TODO: add LogFormatting instance
-    -- testnetTrac <- mkCardanoTracer trBase trForward mbTrEKG ["Testnet"]
-
-    nodeId <- fmap (fromMaybe "unknown-node") $ liftIO $ lookupEnv "NODE_ID"
-    manager <- Http.newManager Http.defaultManagerSettings
-      { Http.managerResponseTimeout = Http.responseTimeoutMicro 10000  -- 10ms
-      }
-
     configureTracers configReflection trConfig [txCountersTracer]
 
     !txPerasCertIn  <-  mkCardanoTracer
@@ -407,6 +385,24 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
                 trBase trForward mbTrEKG
                 ["Peras", "Vote", "Outbound"]
     configureTracers configReflection trConfig [txPerasVoteOut]
+
+    !txPerasCertInclusion <-  mkCardanoTracer
+                trBase trForward mbTrEKG
+                ["Peras", "Cert", "Inclusion"]
+    configureTracers configReflection trConfig [txPerasCertInclusion]
+
+    !txPerasVoteForging <-  mkCardanoTracer
+                trBase trForward mbTrEKG
+                ["Peras", "Vote", "Forging"]
+    configureTracers configReflection trConfig [txPerasVoteForging]
+
+    -- TODO: add LogFormatting instance
+    -- testnetTrac <- mkCardanoTracer trBase trForward mbTrEKG ["Testnet"]
+
+    nodeId <- fmap (fromMaybe "unknown-node") $ liftIO $ lookupEnv "NODE_ID"
+    manager <- Http.newManager Http.defaultManagerSettings
+      { Http.managerResponseTimeout = Http.responseTimeoutMicro 10000  -- 10ms
+      }
 
     pure $ Consensus.Tracers
       { Consensus.chainSyncClientTracer = mkTracer $
