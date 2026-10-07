@@ -48,8 +48,16 @@ packages:
   bench/trace-schemas/scripts/schema-gen
   trace-forward
 
+optional-packages:
+  ../ouroboros-consensus
+
+
 -- Needed when cross compiling
 extra-packages: alex, dmq-node
+
+allow-older:
+  , dmq-node:ouroboros-consensus
+
 
 program-options
   ghc-options: -Werror
@@ -118,7 +126,7 @@ source-repository-package
 -- IntersectMBO/cardano-api#1361 (Dijkstra sub-transaction API).
 source-repository-package
   type: git
-  location: https://github.com/IntersectMBO/cardano-api
+  location: https://github.com/tweag/cardano-api
   tag: c9943eb31ca918deb64cc5bc4949048749ed6303
   --sha256: sha256-2we4ypKkedQYc7N+LVC2rdQGhqL9ll0wX9JTOiS8LPg=
   subdir:
@@ -130,8 +138,17 @@ source-repository-package
 -- "Nested transaction swap" test. Replace once #1453 is merged and released.
 source-repository-package
   type: git
-  location: https://github.com/IntersectMBO/cardano-cli
+  location: https://github.com/tweag/cardano-cli
   tag: c5062645d80bc5ea019c48899403c455eca1a6b7
   --sha256: sha256-iKFQLcNSV55OGVEEFT4DITx545xsn4BDRixKiBdK3nQ=
   subdir:
     cardano-cli
+
+-- NOTE: keep ouroboros overrides at the end of the file, the cardano-peras testnet dev env depends on that
+source-repository-package
+  type: git
+  location: https://github.com/tweag/ouroboros-consensus
+  tag: 5a4bc01a612a0c949d4b9ad4cf9accbc098b4796
+  --sha256: sha256-K5FL3JD5j6yCFSCl/UHSKf0H8ePOdkmoihxazXYS4Qc=
+  subdir:
+    .
