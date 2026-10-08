@@ -14,8 +14,8 @@ module Testnet.Signal
 
 #ifdef UNIX
 import           Control.Monad
-import           System.Posix.Signals (Handler (..), installHandler, raiseSignal, sigINT,
-                   sigKILL, signalProcess)
+import           System.Posix.Signals (Handler (..), Signal, installHandler, raiseSignal, sigINT,
+                   sigKILL, sigTERM, signalProcess)
 import           System.Process (ProcessHandle, getPid, interruptProcessGroupOf)
 #else
 import           System.Process (ProcessHandle, terminateProcess)
@@ -29,12 +29,16 @@ interruptNodesOnSigINT :: [ProcessHandle] -> NonEmpty TestnetNode -> IO ()
 #ifdef UNIX
 interruptNodesOnSigINT extraProcesses testnetNodes =
   -- Interrupt cardano nodes (and any extra processes, e.g. cardano-tracer)
-  -- when the main process is interrupted
-  void $ flip (installHandler sigINT) Nothing $ CatchOnce $ do
+  -- when the main process is asked to terminate.
+  forM_ [sigINT, sigTERM] $ \sig ->
+    installHandler sig (handler sig) Nothing
+ where
+  handler :: Signal -> Handler
+  handler sig = CatchOnce $ do
     forM_ testnetNodes $ \TestnetNode{nodeProcessHandle} ->
       interruptProcessGroupOf nodeProcessHandle
     forM_ extraProcesses interruptProcessGroupOf
-    raiseSignal sigINT
+    raiseSignal sig
 #else
 interruptNodesOnSigINT _extraProcesses _testnetNodes = pure ()
 #endif
