@@ -370,7 +370,7 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
     !txCountersTracer  <-  mkCardanoTracer
                 trBase trForward mbTrEKG
                 ["txCounters", "Remote"]
- 
+
     !txPerasCertIn <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Cert", "Inbound"]
     !txPerasCertOut <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Cert", "Outbound"]
     !txPerasVoteIn <- mkCardanoTracer trBase trForward mbTrEKG ["Peras", "Vote", "Inbound"]

@@ -1701,7 +1701,7 @@ instance MetaTrace (PerasVoteDB.TraceEvent blk) where
     , Namespace [] ["GarbageCollected"]
     ]
 
-  severityFor _ _ = Just Info
+  severityFor _ _ = Just Notice
   privacyFor _ _ = Just Public
   detailsFor _ _ = Just DNormal
 
@@ -1735,7 +1735,7 @@ instance MetaTrace (PerasCertDB.TraceEvent blk) where
     , Namespace [] ["GarbageCollected"]
     ]
 
-  severityFor _ _ = Just Info
+  severityFor _ _ = Just Notice
   privacyFor _ _ = Just Public
   detailsFor _ _ = Just DNormal
 
@@ -2959,7 +2959,7 @@ instance MetaTrace (Peras.TraceObjectDiffusionInbound object objectid) where
     namespaceFor _ =
         Namespace [] ["TraceObjectDiffusionInbound"]
 
-    severityFor _ _ = Just Info
+    severityFor _ _ = Just Notice
     documentFor _ = Nothing
     metricsDocFor _ = []
 
@@ -2972,7 +2972,7 @@ instance MetaTrace (Peras.TraceObjectDiffusionOutbound objectid object) where
     namespaceFor _ =
         Namespace [] ["TraceObjectDiffusionOutbound"]
 
-    severityFor _ _ = Just Info
+    severityFor _ _ = Just Notice
     documentFor _ = Nothing
     metricsDocFor _ = []
 
@@ -3014,7 +3014,7 @@ instance MetaTrace (Peras.TracePerasVoteForgingEvent blk) where
     namespaceFor (Peras.TracePerasVotingCantReadEnv {}) =
         Namespace [] ["VotingCantReadEnv"]
 
-    severityFor _ _ = Just Info
+    severityFor _ _ = Just Notice
     documentFor _ = Nothing
     metricsDocFor _ = []
 
@@ -3041,39 +3041,17 @@ instance MetaTrace (Peras.TracePerasCertInclusionEvent blk) where
     namespaceFor Peras.TracePerasCertInclusionError {} =
       Namespace [] ["InclusionError"]
 
-    -- FIXME: all these errors & descriptions
-    severityFor (Namespace _ ["NoCertToInclude"]) _ = Just Debug
-    severityFor (Namespace _ ["RulesDecision"]) _ = Just Debug
-    severityFor (Namespace _ ["NotEnabledForRound"]) _ = Just Debug
-    severityFor (Namespace _ ["PastHorizonException"]) _ = Just Error
-    severityFor (Namespace _ ["InclusionError"]) _ = Just Error
-    severityFor _ _ = Nothing
-
-    documentFor (Namespace _ ["NoCertToInclude"]) =
-      Just "There is no latest seen certificate, so there is no certificate to possibly include in a block."
-    documentFor (Namespace _ ["ShouldIncludeCert"]) =
-      Just "A certificate needs to be included in a block."
-    documentFor (Namespace _ ["ShouldNotIncludeCert"]) =
-      Just "A certificate does not need to be included in a block."
-    documentFor (Namespace _ ["FailedToConstructOpaqueCert"]) =
-      Just "Failed to construct an opaque Peras certificate."
+    severityFor _ _ = Just Notice
     documentFor _ = Nothing
-
-    metricsDocFor (Namespace _ ["NoCertToInclude"]) =
-      [ ("peras.certInclusion.noCertToInclude", "Number of slots with no certificate to include") ]
-    metricsDocFor (Namespace _ ["ShouldIncludeCert"]) =
-      [ ("peras.certInclusion.shouldIncludeCert", "Number of certificates included in blocks") ]
-    metricsDocFor (Namespace _ ["ShouldNotIncludeCert"]) =
-      [ ("peras.certInclusion.shouldNotIncludeCert", "Number of certificates not included") ]
-    metricsDocFor (Namespace _ ["FailedToConstructOpaqueCert"]) =
-      [ ("peras.certInclusion.failedToConstruct", "Number of failures to construct opaque certificates") ]
     metricsDocFor _ = []
 
     allNamespaces = [
         Namespace [] ["NoCertToInclude"]
-      , Namespace [] ["ShouldIncludeCert"]
+      , Namespace [] ["RulesDecision"]
+      , Namespace [] ["NotEnabledForRound"]
+      , Namespace [] ["PastHorizonException"]
       , Namespace [] ["ShouldNotIncludeCert"]
-      , Namespace [] ["FailedToConstructOpaqueCert"]
+      , Namespace [] ["CertInclusionError"]
       ]
 
 instance LogFormatting (PerasV1.PerasError blk) where
