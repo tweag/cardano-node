@@ -45,11 +45,13 @@ import qualified Data.ByteString.Lazy.Char8 as BSC
 import           Data.List (isInfixOf)
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NEL
+import qualified Data.Map as M
 import           GHC.Stack
 import qualified GHC.Stack as GHC
 import           Network.Socket (HostAddress, PortNumber)
 import           Prettyprinter (unAnnotate)
 import qualified System.Directory as IO
+import           System.Environment (getEnvironment)
 import           System.FilePath
 import qualified System.IO as IO
 import qualified System.Process as IO
@@ -103,6 +105,13 @@ instance Error NodeStartFailure where
     NodeExecutableError e -> "Cardano node process did not start:" <+> unAnnotate e
     NodeAddressAlreadyInUseError e -> "Cardano node process did not start - address already in use:" <+> unAnnotate e
     MaxSprocketLengthExceededError -> "Max sprocket length exceeded"
+
+-- | Inherit the shell environment, but use the given arguments to override
+-- anything which might already be in there.
+overidingInheritedEnvironment :: [(String, String)] -> IO [(String, String)]
+overidingInheritedEnvironment overrides = do
+  inherited <- getEnvironment
+  pure $ M.toList $ M.fromList overrides <> M.fromList inherited
 
 -- TODO: We probably want a check that this node has the necessary config files to run and
 -- if it doesn't we fail hard.
@@ -191,6 +200,7 @@ startNode tp node ipv4 port _testnetMagic mNodeBin (perasPublicKeysFile, perasOp
           [ ("NODE_ID", node)
           , ("PERAS_PUBLIC_KEY_FILE", perasPublicKeysFile)
           ] ++ perasEnv
+    env <- liftIOAnnotated $ overidingInheritedEnvironment nodeEnv
 
     (Just stdIn, _, _, hProcess, _)
       <- firstExceptT ProcessRelatedFailure $ initiateProcess
@@ -198,7 +208,7 @@ startNode tp node ipv4 port _testnetMagic mNodeBin (perasPublicKeysFile, perasOp
                { IO.std_in = IO.CreatePipe, IO.std_out = IO.UseHandle hNodeStdout
                , IO.std_err = IO.UseHandle hNodeStderr
                , IO.cwd = Just tempBaseAbsPath
-               , IO.env = Just nodeEnv
+               , IO.env = Just env
                }
 
     -- We force the evaluation of initiateProcess so we can be sure that
