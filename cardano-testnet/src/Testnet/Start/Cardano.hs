@@ -391,8 +391,6 @@ cardanoTestnet
 
       perasPublicKeysFile = tmpAbsPath </> "peras-public-keys.json"
 
-  print perasOptionsByIndex
-
   liftIOAnnotated . LBS.writeFile perasPublicKeysFile . encode $
     Map.fromList
       [ (Text.pack poolId, Text.pack $ BSC.unpack publicKeyBytes)
