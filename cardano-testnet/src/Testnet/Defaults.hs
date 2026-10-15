@@ -236,7 +236,7 @@ traceOptionsForwarding =
         , "Stdout MachineFormat"
         ]
       , "detail" .= toJSON @String "DNormal"
-      , "severity" .= toJSON @String "Notice"
+      , "severity" .= toJSON @String "Info"
       ]
     ]
 
