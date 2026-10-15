@@ -435,6 +435,7 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
           traceWith txPerasVoteOut
       , Consensus.perasCertInclusionTracer = nullTracer
       , Consensus.perasVoteForgingTracer = nullTracer
+      , Consensus.testnetTracer = nullTracer
       }
 
 mkNodeToClientTracers :: forall blk.

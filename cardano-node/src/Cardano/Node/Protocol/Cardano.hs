@@ -35,6 +35,8 @@ import           Ouroboros.Consensus.Cardano.Condense ()
 import qualified Ouroboros.Consensus.Cardano.Node as Consensus
 import           Ouroboros.Consensus.HardFork.Combinator.AcrossEras ()
 import           Ouroboros.Consensus.HardFork.Combinator.Condense ()
+import           Ouroboros.Consensus.Tracing ()
+
 
 import           Prelude
 

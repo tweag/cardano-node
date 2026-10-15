@@ -36,6 +36,7 @@ import           Control.Exception.Safe
 import           Control.Monad
 import           Control.Monad.State.Strict
 import           Control.Monad.Trans.Resource
+import           Lens.Micro ((^.))
 import           Data.Aeson
 import           Data.Aeson.Encode.Pretty (encodePretty)
 import           Data.Algorithm.Diff
@@ -551,14 +552,14 @@ calculateEpochStateDiff current next =
      else ppDiff diffResult
 
 instance (L.EraTxOut ledgerera, L.EraGov ledgerera, L.EraCertState ledgerera, L.EraStake ledgerera) => ToJSON (L.NewEpochState ledgerera) where
-  toJSON (L.NewEpochState nesEL nesBprev nesBCur nesEs nesRu nesPd _stashedAvvm) =
+  toJSON nes@(L.NewEpochState nesEL nesBprev nesBCur nesEs nesRu _stashedAvvm) =
     object
       [ "currentEpoch" .= nesEL
       , "priorBlocks" .= nesBprev
       , "currentEpochBlocks" .= nesBCur
       , "currentEpochState" .= nesEs
       , "rewardUpdate" .= nesRu
-      , "currentStakeDistribution" .= nesPd
+      , "currentStakeDistribution" .= (nes ^. L.nesStakePoolDistrG)
       ]
 
 
