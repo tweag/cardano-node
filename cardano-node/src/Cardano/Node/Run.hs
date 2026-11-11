@@ -430,7 +430,10 @@ handleSimpleNode blockType runP tracers forgingStateVar nc cmdPc networkMagic on
           , rnGetUseBootstrapPeers = readTVar useBootstrapVar
           , rnTxSubmissionLogicVersion = ncTxSubmissionLogicVersion nc
           , rnTxSubmissionInitDelay = ncTxSubmissionInitDelay nc
-          , rnFeatureFlags = Set.singleton PerasFlag
+          , rnFeatureFlags =
+              if ncPerasEnabled nc
+                then Set.singleton PerasFlag
+                else Set.empty
           }
 #ifdef UNIX
     -- initial `SIGHUP` handler, which rereads the topology file and the RPC config from the main configuration file

@@ -275,6 +275,7 @@ defaultYamlHardforkViaConfig sbe =
   hardforkViaConfig sbe' =
     Aeson.fromList $
       ("ExperimentalProtocolsEnabled", Aeson.Bool True)
+      : ("PerasEnabled", Aeson.Bool True)
       : (case sbe' of
             ShelleyBasedEraShelley ->
                 [ ("TestShelleyHardForkAtEpoch", Aeson.Number 0) ]
