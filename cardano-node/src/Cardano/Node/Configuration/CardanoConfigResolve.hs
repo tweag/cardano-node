@@ -56,9 +56,8 @@ import           Cardano.Node.Configuration.POM (NodeConfiguration (..),
                    PartialNodeConfiguration (..), defaultPartialNodeConfiguration,
                    makeNodeConfiguration, parseNodeConfigurationFP)
 import           Cardano.Node.Parsers (nodeCLIParser)
-import           Cardano.Node.Types (ConfigYamlFilePath (..), ProtocolFilepaths (..))
+import           Cardano.Node.Types (ConfigYamlFilePath (..))
 
-import           Control.Applicative ((<|>))
 import           Control.Exception (Exception (..))
 import qualified Control.Exception as Exception
 import           Data.Aeson (Value (..))
@@ -120,7 +119,7 @@ buildNodeConfiguration ::
 buildNodeConfiguration crossCheck partialConf = do
   classifyConfigurationFile configFp >>= \case
     LegacyDialect -> buildFromLegacy crossCheck partialConf configFp
-    CardanoConfigDialect -> buildFromCardanoConfig partialConf configFp
+    CardanoConfigDialect -> buildFromCardanoConfig configFp
  where
   -- An absent @--config@ falls back to the node's default path, exactly as
   -- 'parseNodeConfigurationFP' does.
@@ -185,22 +184,10 @@ buildFromLegacy crossCheck partialConf configFp = do
 -- | Resolve an envelope configuration with @cardano-config@ alone and map it to
 -- the node's 'NodeConfiguration'. Unlike the cross-check on the legacy path,
 -- every failure here is fatal: there is no second parser to fall back to.
-buildFromCardanoConfig :: PartialNodeConfiguration -> FilePath -> IO ResolvedNodeConfiguration
-buildFromCardanoConfig partialConf configFp = do
-  rnc <-
-    cardanoConfigCliArgs configFp
-      >>= either (Exception.throwIO . NodeConfigurationError) (buildFromCardanoConfigWith configFp)
-  let nc = rncConfiguration rnc
-      cliShelleyKeyFile = getLast (pncShelleyBLSKeyFile partialConf) >>= id
-  pure
-    rnc
-      { rncConfiguration =
-          nc
-            { ncProtocolFiles =
-                (ncProtocolFiles nc)
-                  { shelleyBLSKeyFile = cliShelleyKeyFile <|> shelleyBLSKeyFile (ncProtocolFiles nc) }
-            }
-      }
+buildFromCardanoConfig :: FilePath -> IO ResolvedNodeConfiguration
+buildFromCardanoConfig configFp =
+  cardanoConfigCliArgs configFp
+    >>= either (Exception.throwIO . NodeConfigurationError) (buildFromCardanoConfigWith configFp)
 
 -- | 'buildFromCardanoConfig' with a given command-line layer instead of this
 -- process's own command line: for a caller that is not the node, whose command
