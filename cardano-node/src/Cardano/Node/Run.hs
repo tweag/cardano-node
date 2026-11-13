@@ -176,6 +176,9 @@ import           Ouroboros.Consensus.Mempool (MempoolTimeoutConfig(..))
 import           GHC.Stack
 import Ouroboros.Consensus.Block (MkBlockForging(mkBlockForging))
 
+import Data.IORef (newIORef)
+import Cardano.Base.FeatureFlags (CardanoFeatureFlag (..))
+
 {- HLINT ignore "Fuse concatMap/map" -}
 {- HLINT ignore "Redundant <$>" -}
 {- HLINT ignore "Use fewer imports" -}
@@ -427,7 +430,7 @@ handleSimpleNode blockType runP tracers forgingStateVar nc cmdPc networkMagic on
           , rnGetUseBootstrapPeers = readTVar useBootstrapVar
           , rnTxSubmissionLogicVersion = ncTxSubmissionLogicVersion nc
           , rnTxSubmissionInitDelay = ncTxSubmissionInitDelay nc
-          , rnFeatureFlags = mempty -- TODO(10.7) forward this to CLI options?
+          , rnFeatureFlags = Set.singleton PerasFlag
           }
 #ifdef UNIX
     -- initial `SIGHUP` handler, which rereads the topology file and the RPC config from the main configuration file

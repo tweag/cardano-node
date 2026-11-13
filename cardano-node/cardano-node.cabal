@@ -157,6 +157,7 @@ library
                       , hashable
                       , hostname
                       , io-classes:{io-classes,strict-stm,si-timers} ^>= 1.8 || ^>= 1.9
+                      , http-client
                       , microlens
                       , mmap
                       , network-mux
@@ -187,6 +188,8 @@ library
                       , transformers-except
                       , typed-protocols:{typed-protocols, stateful} >= 1.2
                       , yaml
+                      , cardano-protocol
+                      , cardano-base
 
 executable cardano-node
   import:               project-config

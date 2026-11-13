@@ -6,6 +6,8 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE StandaloneDeriving #-}
 
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+
 module Cardano.Node.Protocol.Types
   ( Protocol(..)
   , SomeConsensusProtocol(..)
@@ -24,7 +26,6 @@ import           Data.Aeson
 import           GHC.Generics (Generic)
 
 import           NoThunks.Class (NoThunks)
-
 
 data Protocol = CardanoProtocol
   deriving (Eq, Generic)

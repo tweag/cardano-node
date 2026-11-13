@@ -55,7 +55,6 @@ import           System.Metrics as EKG
 import           Trace.Forward.Forwarding (InitForwardingConfig (..), initForwardingDelayed)
 import           Trace.Forward.Utils.TraceObject (writeToSink)
 
-
 initTraceDispatcher ::
   forall blk.
   ( TraceConstraints blk

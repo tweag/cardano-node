@@ -188,7 +188,12 @@ instance Default RpcHttpOptions where
 
 data TraceSupport
   = TraceDisabled -- ^ Do not enable tracing
-  | TraceEnabled  -- ^ Enable tracing over cardano-tracer
+  | TraceEnabled
+    -- ^ Enable tracing over cardano-tracer.
+      IP
+      -- ^ Bind prometheus on this IP.
+      (Maybe PortNumber)
+      -- ^ Using this port for prometheus, when given. Choose randomly otherwise.
   deriving (Eq, Show)
 
 -- | Options for creating a testnet environment (genesis files, topology, ports).
@@ -232,7 +237,7 @@ data TestnetRuntimeOptions = TestnetRuntimeOptions
 
 instance Default TestnetRuntimeOptions where
   def = TestnetRuntimeOptions
-    { runtimeEnableNewEpochStateLogging = True
+    { runtimeEnableNewEpochStateLogging = False
     , runtimeEnableRpc = RpcDisabled
     , runtimeEnableTracer = TraceDisabled
     , runtimeKESSource = def

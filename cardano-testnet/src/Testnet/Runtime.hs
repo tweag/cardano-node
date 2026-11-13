@@ -36,6 +36,7 @@ import           Control.Exception.Safe
 import           Control.Monad
 import           Control.Monad.State.Strict
 import           Control.Monad.Trans.Resource
+import           Lens.Micro ((^.))
 import           Data.Aeson
 import           Data.Aeson.Encode.Pretty (encodePretty)
 import           Data.Algorithm.Diff
@@ -45,11 +46,13 @@ import qualified Data.ByteString.Lazy.Char8 as BSC
 import           Data.List (isInfixOf)
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NEL
+import qualified Data.Map as M
 import           GHC.Stack
 import qualified GHC.Stack as GHC
 import           Network.Socket (HostAddress, PortNumber)
 import           Prettyprinter (unAnnotate)
 import qualified System.Directory as IO
+import           System.Environment (getEnvironment)
 import           System.FilePath
 import qualified System.IO as IO
 import qualified System.Process as IO
@@ -90,6 +93,11 @@ mkNodeNonEmptyStderrError stderr' = do
     then NodeAddressAlreadyInUseError $ pretty stderr'
     else NodeExecutableError $ pretty stderr'
 
+-- | Filter out benign debug traces on stderr.
+isBenignStderrLine :: String -> Bool
+isBenignStderrLine line =
+  null (dropWhile (== ' ') line) || isInfixOf "[Testnet Debug]:" line
+
 instance Error NodeStartFailure where
   prettyError = \case
     ProcessRelatedFailure e -> "Cannot initiate process:" <+> pshow e
@@ -98,6 +106,13 @@ instance Error NodeStartFailure where
     NodeExecutableError e -> "Cardano node process did not start:" <+> unAnnotate e
     NodeAddressAlreadyInUseError e -> "Cardano node process did not start - address already in use:" <+> unAnnotate e
     MaxSprocketLengthExceededError -> "Max sprocket length exceeded"
+
+-- | Inherit the shell environment, but use the given arguments to override
+-- anything which might already be in there.
+overidingInheritedEnvironment :: [(String, String)] -> IO [(String, String)]
+overidingInheritedEnvironment overrides = do
+  inherited <- getEnvironment
+  pure $ M.toList $ M.fromList overrides <> M.fromList inherited
 
 -- TODO: We probably want a check that this node has the necessary config files to run and
 -- if it doesn't we fail hard.
@@ -126,11 +141,13 @@ startNode
   -- ^ Testnet magic
   -> Maybe FilePath
   -- ^ Optional custom node binary. 'Nothing' uses the default resolution.
+  -> (FilePath, Maybe (String, String))
+  -- ^ Peras options
   -> [String]
   -- ^ The command to execute to start the node.
   -- @--socket-path@, @--port@, and @--host-addr@ gets added automatically.
   -> ExceptT NodeStartFailure m TestnetNode
-startNode tp node ipv4 port _testnetMagic mNodeBin nodeCmd = GHC.withFrozenCallStack $ do
+startNode tp node ipv4 port _testnetMagic mNodeBin (perasPublicKeysFile, perasOptions) nodeCmd = GHC.withFrozenCallStack $ do
   let tempBaseAbsPath = makeTmpBaseAbsPath tp
       socketDir = makeSocketDir tp
       logDir = makeLogDir tp
@@ -174,12 +191,25 @@ startNode tp node ipv4 port _testnetMagic mNodeBin nodeCmd = GHC.withFrozenCallS
     unless isClosed $
       throwString $ "Port is still in use after " ++ show portWaitTimeout ++ " seconds before starting node: " <> show port
 
+    let perasEnv = case perasOptions of
+          Nothing -> []
+          Just (perasPoolId, perasPrivateKey) ->
+            [ ("PERAS_POOL_ID", perasPoolId)
+            , ("PERAS_PRIVATE_KEY", perasPrivateKey)
+            ]
+    let nodeEnv =
+          [ ("NODE_ID", node)
+          , ("PERAS_PUBLIC_KEY_FILE", perasPublicKeysFile)
+          ] ++ perasEnv
+    env <- liftIOAnnotated $ overidingInheritedEnvironment nodeEnv
+
     (Just stdIn, _, _, hProcess, _)
       <- firstExceptT ProcessRelatedFailure $ initiateProcess
             $ nodeProcess
                { IO.std_in = IO.CreatePipe, IO.std_out = IO.UseHandle hNodeStdout
                , IO.std_err = IO.UseHandle hNodeStderr
                , IO.cwd = Just tempBaseAbsPath
+               , IO.env = Just env
                }
 
     -- We force the evaluation of initiateProcess so we can be sure that
@@ -203,8 +233,10 @@ startNode tp node ipv4 port _testnetMagic mNodeBin nodeCmd = GHC.withFrozenCallS
 
     -- If we do have anything on stderr, fail.
     stdErrContents <- liftIOAnnotated $ IO.readFile nodeStderrFile
-    unless (null stdErrContents) $
-      throwError $ mkNodeNonEmptyStderrError stdErrContents
+    -- but, don't consider 'debugLog' calls to be failures.
+    let realStdErr = unlines . filter (not . isBenignStderrLine) $ lines stdErrContents
+    unless (null realStdErr) $
+      throwError $ mkNodeNonEmptyStderrError realStdErr
 
     -- No stderr and no socket? Fail.
     case res of
@@ -511,9 +543,9 @@ startLedgerNewEpochStateLogging testnetRuntime tmpWorkspace = withFrozenCallStac
             -> SlotNo
             -> BlockNo
             -> StateT (Maybe AnyNewEpochState) IO ConditionResult
-    handler outputFp diffFp anes@(AnyNewEpochState !sbe !nes _) _ (BlockNo blockNo') = handleException $ do
+    handler outputFp diffFp anes@(AnyNewEpochState !sbe !nes _) _ (BlockNo blkNo) = handleException $ do
       let prettyNes = shelleyBasedEraConstraints sbe (encodePretty nes)
-          blockLabel = "#### BLOCK " <> show blockNo' <> " ####"
+          blockLabel = "#### BLOCK " <> show blkNo <> " ####"
       liftIOAnnotated . BSC.appendFile outputFp $ BSC.unlines [BSC.pack blockLabel, prettyNes, ""]
 
       -- store epoch state for logging of differences
@@ -551,14 +583,14 @@ calculateEpochStateDiff current next =
      else ppDiff diffResult
 
 instance (L.EraTxOut ledgerera, L.EraGov ledgerera, L.EraCertState ledgerera, L.EraStake ledgerera) => ToJSON (L.NewEpochState ledgerera) where
-  toJSON (L.NewEpochState nesEL nesBprev nesBCur nesEs nesRu nesPd _stashedAvvm) =
+  toJSON nes@(L.NewEpochState nesEL nesBprev nesBCur nesEs nesRu _stashedAvvm) =
     object
       [ "currentEpoch" .= nesEL
       , "priorBlocks" .= nesBprev
       , "currentEpochBlocks" .= nesBCur
       , "currentEpochState" .= nesEs
       , "rewardUpdate" .= nesRu
-      , "currentStakeDistribution" .= nesPd
+      , "currentStakeDistribution" .= (nes ^. L.nesStakePoolDistrG)
       ]
 
 

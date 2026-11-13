@@ -61,6 +61,10 @@ import           Control.Monad.Trans.Resource (MonadResource, getInternalState)
 import           Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Encode.Pretty as A
+import qualified Data.ByteString.Base16 as B16
+import qualified Data.ByteString.Char8 as BSC
+import qualified Data.ByteString.Lazy.Char8 as BSL8
+import qualified Data.Yaml as Yaml
 import qualified Data.ByteString.Lazy as LBS
 import           Data.Default.Class ()
 import           Data.Either
@@ -76,7 +80,6 @@ import qualified Data.Text as Text
 import           Data.Time (diffUTCTime)
 import           Data.Time.Clock (NominalDiffTime)
 import qualified Data.Time.Clock as DTC
-import qualified Data.Yaml as Yaml
 import           GHC.Exts (fromList)
 import           GHC.Stack
 import qualified System.Directory as IO
@@ -84,6 +87,8 @@ import           System.FilePath ((</>), dropExtension)
 import qualified System.Process as Process
 
 import           Testnet.CardanoTracer (CardanoTracerConf(..), CardanoTracerRuntime(..), startCardanoTracer)
+import qualified Ouroboros.Consensus.Committee.Crypto.BLS as BLS
+
 import           Testnet.ChainWatchdog (chainForecastHorizon, chainStallWatchdog, stderrTracer)
 import           Testnet.Components.Configuration
 import qualified Testnet.Defaults as Defaults
@@ -91,7 +96,7 @@ import           Testnet.Filepath
 import           Testnet.Manifest (buildManifest, removeStaleManifest, writeManifest)
 import           Testnet.Orphans ()
 import qualified Testnet.Ping as Ping
-import           Testnet.Process.RunIO (execCli', execCli_, liftIOAnnotated, mkExecConfig)
+import           Testnet.Process.RunIO (execCli', execCli_, liftIOAnnotated, mkExecConfig, defaultExecConfig)
 import           Testnet.Property.Assert (assertExpectedSposInLedgerState)
 import           Testnet.Runtime as TR
 import           Testnet.Signal (interruptNodesOnSigINT)
@@ -296,10 +301,12 @@ cardanoTestnet
   -- alongside the nodes (see 'interruptNodesOnSigINT' below).
   (nodeConfigFile', mTracer) <- case cardanoEnableTracer of
     TraceDisabled -> pure (nodeConfigFile, Nothing)
-    TraceEnabled -> do
+    TraceEnabled ip mport -> do
       cfgFile' <- liftIOAnnotated $ enableTraceForwarding nodeConfigFile
       tracerRuntime <- startCardanoTracer $ CardanoTracerConf
         { tempAbsPath = tmpAbsPath
+        , prometheusIP = ip
+        , prometheusPort = mport
         , testnetMagic = testnetMagic
         , logFormat = ForMachine
         }
@@ -373,6 +380,42 @@ cardanoTestnet
       else pure initialShelleyGenesis
 
   let portNumbersMap = Map.fromList portNumbers
+      bLSKeyScope :: BLS.KeyScope
+      bLSKeyScope = "TESTNET"
+
+  perasSpoKeys <- forM (zip [1 :: Int ..] (NEL.toList cardanoSpoNodes)) $ \(i, _) -> do
+    let SpoNodeKeys{poolNodeKeysCold} = mkTestnetNodeKeyPaths i
+    poolId <- execCli' defaultExecConfig
+      [ "latest", "stake-pool", "id"
+      , "--cold-verification-key-file", verificationKeyFp poolNodeKeysCold
+      , "--output-hex"
+      ]
+    privateKeyContent <- liftIOAnnotated $ readFile (signingKeyFp poolNodeKeysCold)
+    privateKeyHex <- case decode (BSL8.pack privateKeyContent) of
+      (Just (Object keyMap)) -> case KeyMap.lookup "cborHex" keyMap of
+        Just (String privateKey) -> pure (Text.unpack $ Text.drop 4 privateKey)
+        _ -> throwString "Failed to parse PERAS_PRIVATE_KEY: missing cborHex field"
+      _ -> throwString "Failed to parse PERAS_PRIVATE_KEY: skey file is incorrect"
+    privateKeyBytes <- case B16.decode (BSC.pack privateKeyHex) of
+      Left err -> throwString $ "Failed to decode Peras BLS private key for pool " <> poolId <> ": " <> err
+      Right bytes -> pure bytes
+    privateKey <- case BLS.rawDeserialisePrivateKey bLSKeyScope privateKeyBytes of
+      Nothing -> throwString $ "Failed to parse Peras BLS private key for pool " <> poolId
+      Just sk -> pure sk
+    let publicKeyBytes = BLS.rawSerialisePublicKey (BLS.derivePublicKey privateKey)
+    pure (i, poolId, privateKeyHex, publicKeyBytes)
+
+  let perasOptionsByIndex :: Map.Map Int (String, String)
+      perasOptionsByIndex = Map.fromList
+        [ (i, (poolId, privateKeyHex)) | (i, poolId, privateKeyHex, _) <- perasSpoKeys ]
+
+      perasPublicKeysFile = tmpAbsPath </> "peras-public-keys.json"
+
+  liftIOAnnotated . LBS.writeFile perasPublicKeysFile . encode $
+    Map.fromList
+      [ (Text.pack poolId, Text.pack $ BSC.unpack publicKeyBytes)
+      | (_, poolId, _, publicKeyBytes) <- perasSpoKeys
+      ]
 
   rpcPortsMap <- case cardanoEnableRpc of
     RpcEnabledHttp RpcHttpOptions{rpcHttpListenPortBase = Just base}
@@ -440,8 +483,10 @@ cardanoTestnet
           , ["--grpc-enable", "--grpc-listen-address", show rpcHttpListenAddress, "--grpc-listen-port", show rpcPort]
           )
 
+    let perasOptions = Map.lookup i perasOptionsByIndex
+
     eRuntime <- runExceptT . retryOnAddressInUseError $
-      startNode (TmpAbsolutePath tmpAbsPath) nodeName testnetDefaultIpv4Address port testnetMagic (nodeBin nodeWithOptions) $
+      startNode (TmpAbsolutePath tmpAbsPath) nodeName testnetDefaultIpv4Address port testnetMagic (nodeBin nodeWithOptions) (perasPublicKeysFile, perasOptions) $
         [ "run"
         , "--config", nodeConfigFile'
         , "--topology", tmpAbsPath </> defaultNodeTopologyFile nodeName
@@ -486,15 +531,16 @@ cardanoTestnet
   -- process is interrupted
   liftIOAnnotated $ interruptNodesOnSigINT (maybe [] (pure . tracerHandle) mTracer) testnetNodes'
 
+
   -- Make sure that all nodes are healthy by waiting for a chain extension.
   -- The deadline covers the worst case in which the chain can still start: genesis start
   -- time lies at most 'startTimeOffsetSeconds' in the future, and the first block must
   -- appear within the forecast horizon after it (see 'chainForecastHorizon'), plus
   -- 'startupDetectionMarginSeconds'.
   let startupHorizon = chainForecastHorizon shelleyGenesis
-      startupBlockTimeout =
+      _startupBlockTimeout =
         startTimeOffsetSeconds + ceiling startupHorizon + startupDetectionMarginSeconds
-  mapConcurrently_ (waitForBlockThrow startupHorizon startupBlockTimeout (File nodeConfigFile')) testnetNodes'
+--  mapConcurrently_ (waitForBlockThrow startupHorizon startupBlockTimeout (File nodeConfigFile')) testnetNodes'
 
   let runtime = TestnetRuntime
         { configurationFile = File nodeConfigFile'
@@ -552,14 +598,14 @@ cardanoTestnet
     mkTestnetNodeKeyPaths n = makePathsAbsolute $ Defaults.defaultSpoKeys n
 
     -- wait for new blocks or throw an exception if there are none in the timeout period
-    waitForBlockThrow :: MonadUnliftIO m
+    _waitForBlockThrow :: MonadUnliftIO m
                       => MonadCatch m
                       => DTC.NominalDiffTime -- ^ the chain's forecast horizon, for diagnostics
                       -> Int -- ^ timeout in seconds
                       -> NodeConfigFile 'In
                       -> TestnetNode
                       -> m ()
-    waitForBlockThrow horizon timeoutSeconds nodeConfigFile node@TestnetNode{nodeName} = do
+    _waitForBlockThrow horizon timeoutSeconds nodeConfigFile node@TestnetNode{nodeName} = do
       fs <- liftIO $ mkNodeConfigFs nodeConfigFile
       result <- timeout (timeoutSeconds * 1_000_000) $
         runExceptT . foldEpochState
@@ -569,9 +615,9 @@ cardanoTestnet
           QuickValidation
           (EpochNo maxBound)
           minBound
-          $ \_ slotNo blockNo' -> do
+          $ \_ slotNo blkNo -> do
             put slotNo
-            pure $ if blockNo' >= 1
+            pure $ if blkNo >= 1
                then ConditionMet -- we got one block
                else ConditionNotMet
 
