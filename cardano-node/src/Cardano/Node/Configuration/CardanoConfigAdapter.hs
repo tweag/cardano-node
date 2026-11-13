@@ -349,7 +349,7 @@ credentialsToProtocolFilepaths c =
     , shelleyVRFFile = strictMaybeToMaybe (Cfg.shelleyVRFKey c)
     , shelleyCertFile = strictMaybeToMaybe (Cfg.shelleyOperationalCertificate c)
     , shelleyBulkCredsFile = strictMaybeToMaybe (Cfg.bulkCredentialsFile c)
-    , shelleyBLSKeyFile = Nothing
+    , shelleyBLSKeyFile = strictMaybeToMaybe (Cfg.shelleyBLSKey c)
     }
  where
   fromCfgKES (Cfg.KESKeyFilePath fp) = KESKeyFilePath fp

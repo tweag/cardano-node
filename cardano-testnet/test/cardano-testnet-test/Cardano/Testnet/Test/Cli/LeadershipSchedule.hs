@@ -266,7 +266,7 @@ hprop_leadershipSchedule = integrationRetryWorkspace 2 "leadership-schedule" $ \
   writeConfiguration (unFile configurationFile) sbe
   newNodePort <- H.randomPort testnetDefaultIpv4Address
   eRuntime <- runExceptT . retryOnAddressInUseError $
-    startNode (TmpAbsolutePath work) "test-spo" testnetDefaultIpv4Address newNodePort testnetMagic Nothing
+    startNode (TmpAbsolutePath work) "test-spo" testnetDefaultIpv4Address newNodePort testnetMagic Nothing Nothing
         [ "run"
         , "--config", unFile configurationFile
         , "--topology", topologyFile
