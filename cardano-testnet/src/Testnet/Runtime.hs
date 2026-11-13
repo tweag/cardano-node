@@ -136,13 +136,13 @@ startNode
   -- ^ Testnet magic
   -> Maybe FilePath
   -- ^ Optional custom node binary. 'Nothing' uses the default resolution.
-  -> (FilePath, Maybe FilePath)
-   -- ^ Optional Peras public-key file and Shelley BLS signing-key file
+  -> Maybe FilePath
+  -- ^ Optional Shelley BLS signing-key file
   -> [String]
   -- ^ The command to execute to start the node.
   -- @--socket-path@, @--port@, and @--host-addr@ gets added automatically.
   -> ExceptT NodeStartFailure m TestnetNode
-startNode tp node ipv4 port _testnetMagic mNodeBin (perasPublicKeysFile, shelleyBLSKeyFile) nodeCmd = GHC.withFrozenCallStack $ do
+startNode tp node ipv4 port _testnetMagic mNodeBin shelleyBLSKeyFile nodeCmd = GHC.withFrozenCallStack $ do
   let tempBaseAbsPath = makeTmpBaseAbsPath tp
       socketDir = makeSocketDir tp
       logDir = makeLogDir tp
@@ -187,10 +187,7 @@ startNode tp node ipv4 port _testnetMagic mNodeBin (perasPublicKeysFile, shelley
     unless isClosed $
       throwString $ "Port is still in use after " ++ show portWaitTimeout ++ " seconds before starting node: " <> show port
 
-    let nodeEnv =
-          [ ("NODE_ID", node)
-          , ("PERAS_PUBLIC_KEY_FILE", perasPublicKeysFile)
-          ]
+    let nodeEnv = [("NODE_ID", node)]
     env <- liftIOAnnotated $ overidingInheritedEnvironment nodeEnv
 
     (Just stdIn, _, _, hProcess, _)
