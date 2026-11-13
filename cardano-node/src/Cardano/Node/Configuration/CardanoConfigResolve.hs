@@ -54,7 +54,7 @@ import           Cardano.Node.Configuration.POM (NodeConfiguration (..),
                    PartialNodeConfiguration (..), defaultPartialNodeConfiguration,
                    makeNodeConfiguration, parseNodeConfigurationFP)
 import           Cardano.Node.Parsers (nodeCLIParser)
-import           Cardano.Node.Types (ConfigYamlFilePath (..))
+import           Cardano.Node.Types (ConfigYamlFilePath (..), ProtocolFilepaths (..))
 
 import           Control.Applicative ((<|>))
 import           Control.Exception (Exception (..))

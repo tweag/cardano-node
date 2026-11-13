@@ -824,6 +824,7 @@ updatePerasVoteForging startupTracer blockType nodeKernel nc failOnKeyError bloc
             [credential] -> Just (poolIdFromShelleyLeaderCredentials credential)
             _ -> Nothing
 
+    credentials :: [ShelleyLeaderCredentials Api.StandardCrypto]
     credentials = case blockType of
       Api.CardanoBlockType ->
         case blockForgingStatus of
@@ -846,7 +847,7 @@ readPerasBLSPrivateKey :: FilePath -> IO (Either String PerasCrypto.PerasPrivate
 readPerasBLSPrivateKey fp = do
   content <- try @IOException (BS.readFile fp)
   pure $ do
-    bytes <- either (Left . ("Could not read Peras BLS private key file " <> fp <> ": " <>) . show) Right content
+    bytes <- either (\e -> Left ("Could not read Peras BLS private key file " <> fp <> ": " <> show e)) Right content
     envelope <- either (const (Left $ "Could not parse Peras BLS private key file " <> fp)) Right
                   (Aeson.eitherDecodeStrict' bytes :: Either String Aeson.Value)
     cborHex <- case envelope of
