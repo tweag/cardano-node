@@ -56,7 +56,6 @@ import           Cardano.Node.Configuration.POM (NodeConfiguration (..),
 import           Cardano.Node.Parsers (nodeCLIParser)
 import           Cardano.Node.Types (ConfigYamlFilePath (..))
 
-import           Control.Applicative ((<|>))
 import           Control.Exception (Exception (..))
 import qualified Control.Exception as Exception
 import           Data.Aeson (Value (..))
@@ -118,7 +117,7 @@ buildNodeConfiguration ::
 buildNodeConfiguration crossCheck partialConf = do
   classifyConfigurationFile configFp >>= \case
     LegacyDialect -> buildFromLegacy crossCheck partialConf configFp
-    CardanoConfigDialect -> buildFromCardanoConfig partialConf configFp
+    CardanoConfigDialect -> buildFromCardanoConfig configFp
  where
   -- An absent @--config@ falls back to the node's default path, exactly as
   -- 'parseNodeConfigurationFP' does.
@@ -167,8 +166,8 @@ buildFromLegacy crossCheck partialConf configFp = do
 -- | Resolve an envelope configuration with @cardano-config@ alone and map it to
 -- the node's 'NodeConfiguration'. Unlike the cross-check on the legacy path,
 -- every failure here is fatal: there is no second parser to fall back to.
-buildFromCardanoConfig :: PartialNodeConfiguration -> FilePath -> IO ResolvedNodeConfiguration
-buildFromCardanoConfig partialConf configFp = do
+buildFromCardanoConfig :: FilePath -> IO ResolvedNodeConfiguration
+buildFromCardanoConfig configFp = do
   cliArgs <-
     cardanoConfigCliArgs configFp
       >>= either (Exception.throwIO . NodeConfigurationError) pure
@@ -179,16 +178,9 @@ buildFromCardanoConfig partialConf configFp = do
   nc <-
     either (Exception.throwIO . NodeConfigurationError) pure $
       cardanoConfigToNodeConfiguration cfgNc
-  let cliShelleyKeyFile = getLast (pncShelleyBLSKeyFile partialConf) >>= id
-      nc' =
-        nc
-          { ncProtocolFiles =
-              (ncProtocolFiles nc)
-                { shelleyBLSKeyFile = cliShelleyKeyFile <|> shelleyBLSKeyFile (ncProtocolFiles nc) }
-          }
   pure
     ResolvedNodeConfiguration
-      { rncConfiguration = nc'
+      { rncConfiguration = nc
       , rncTraceConfig = Just (Cfg.tracingConfiguration cfgNc)
       , rncReport =
           "cardano-config: resolved the configuration (the node's own parser was not run: this"

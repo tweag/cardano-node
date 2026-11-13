@@ -61,9 +61,6 @@ import           Control.Monad.Trans.Resource (MonadResource, getInternalState)
 import           Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Encode.Pretty as A
-import qualified Data.ByteString.Base16 as B16
-import qualified Data.ByteString.Char8 as BSC
-import qualified Data.ByteString.Lazy.Char8 as BSL8
 import qualified Data.Yaml as Yaml
 import qualified Data.ByteString.Lazy as LBS
 import           Data.Default.Class ()
@@ -83,11 +80,10 @@ import qualified Data.Time.Clock as DTC
 import           GHC.Exts (fromList)
 import           GHC.Stack
 import qualified System.Directory as IO
-import           System.FilePath ((</>), dropExtension)
+import           System.FilePath ((</>), dropExtension, takeDirectory)
 import qualified System.Process as Process
 
 import           Testnet.CardanoTracer (CardanoTracerConf(..), CardanoTracerRuntime(..), startCardanoTracer)
-import qualified Ouroboros.Consensus.Committee.Crypto.BLS as BLS
 
 import           Testnet.ChainWatchdog (chainForecastHorizon, chainStallWatchdog, stderrTracer)
 import           Testnet.Components.Configuration
@@ -96,7 +92,7 @@ import           Testnet.Filepath
 import           Testnet.Manifest (buildManifest, removeStaleManifest, writeManifest)
 import           Testnet.Orphans ()
 import qualified Testnet.Ping as Ping
-import           Testnet.Process.RunIO (execCli', execCli_, liftIOAnnotated, mkExecConfig, defaultExecConfig)
+import           Testnet.Process.RunIO (execCli', execCli_, liftIOAnnotated, mkExecConfig)
 import           Testnet.Property.Assert (assertExpectedSposInLedgerState)
 import           Testnet.Runtime as TR
 import           Testnet.Signal (interruptNodesOnSigINT)
@@ -380,42 +376,11 @@ cardanoTestnet
       else pure initialShelleyGenesis
 
   let portNumbersMap = Map.fromList portNumbers
-      bLSKeyScope :: BLS.KeyScope
-      bLSKeyScope = "TESTNET"
-
-  perasSpoKeys <- forM (zip [1 :: Int ..] (NEL.toList cardanoSpoNodes)) $ \(i, _) -> do
-    let SpoNodeKeys{poolNodeKeysCold} = mkTestnetNodeKeyPaths i
-    poolId <- execCli' defaultExecConfig
-      [ "latest", "stake-pool", "id"
-      , "--cold-verification-key-file", verificationKeyFp poolNodeKeysCold
-      , "--output-hex"
-      ]
-    privateKeyContent <- liftIOAnnotated $ readFile (signingKeyFp poolNodeKeysCold)
-    privateKeyHex <- case decode (BSL8.pack privateKeyContent) of
-      (Just (Object keyMap)) -> case KeyMap.lookup "cborHex" keyMap of
-        Just (String privateKey) -> pure (Text.unpack $ Text.drop 4 privateKey)
-        _ -> throwString "Failed to parse Peras BLS key: missing cborHex field"
-      _ -> throwString "Failed to parse Peras BLS key: signing key file is incorrect"
-    privateKeyBytes <- case B16.decode (BSC.pack privateKeyHex) of
-      Left err -> throwString $ "Failed to decode Peras BLS private key for pool " <> poolId <> ": " <> err
-      Right bytes -> pure bytes
-    privateKey <- case BLS.rawDeserialisePrivateKey bLSKeyScope privateKeyBytes of
-      Nothing -> throwString $ "Failed to parse Peras BLS private key for pool " <> poolId
-      Just sk -> pure sk
-    let publicKeyBytes = BLS.rawSerialisePublicKey (BLS.derivePublicKey privateKey)
-    pure (i, poolId, privateKeyHex, publicKeyBytes)
 
   let perasOptionsByIndex :: Map.Map Int FilePath
       perasOptionsByIndex = Map.fromList
-        [ (i, tmpAbsPath </> Defaults.defaultSpoColdSKeyFp i) | (i, _, _, _) <- perasSpoKeys ]
-
-      perasPublicKeysFile = tmpAbsPath </> "peras-public-keys.json"
-
-  liftIOAnnotated . LBS.writeFile perasPublicKeysFile . encode $
-    Map.fromList
-      [ (Text.pack poolId, Text.pack $ BSC.unpack publicKeyBytes)
-      | (_, poolId, _, publicKeyBytes) <- perasSpoKeys
-      ]
+        [ (i, takeDirectory (tmpAbsPath </> Defaults.defaultSpoColdSKeyFp i) </> "bls.skey")
+        | i <- [1 .. length cardanoSpoNodes] ]
 
   rpcPortsMap <- case cardanoEnableRpc of
     RpcEnabledHttp RpcHttpOptions{rpcHttpListenPortBase = Just base}
@@ -486,7 +451,7 @@ cardanoTestnet
     let perasOptions = Map.lookup i perasOptionsByIndex
 
     eRuntime <- runExceptT . retryOnAddressInUseError $
-      startNode (TmpAbsolutePath tmpAbsPath) nodeName testnetDefaultIpv4Address port testnetMagic (nodeBin nodeWithOptions) (perasPublicKeysFile, perasOptions) $
+      startNode (TmpAbsolutePath tmpAbsPath) nodeName testnetDefaultIpv4Address port testnetMagic (nodeBin nodeWithOptions) perasOptions $
         [ "run"
         , "--config", nodeConfigFile'
         , "--topology", tmpAbsPath </> defaultNodeTopologyFile nodeName
