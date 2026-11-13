@@ -83,7 +83,7 @@ import qualified Data.Yaml as Yaml
 import           GHC.Exts (fromList)
 import           GHC.Stack
 import qualified System.Directory as IO
-import           System.FilePath (dropExtension, (</>))
+import           System.FilePath (dropExtension, takeDirectory, (</>))
 import qualified System.Process as Process
 
 import           Testnet.CardanoTracer (CardanoTracerConf (..), CardanoTracerRuntime (..),
@@ -384,6 +384,11 @@ cardanoTestnet
 
   let portNumbersMap = Map.fromList portNumbers
 
+  let perasOptionsByIndex :: Map.Map Int FilePath
+      perasOptionsByIndex = Map.fromList
+        [ (i, takeDirectory (tmpAbsPath </> Defaults.defaultSpoColdSKeyFp i) </> "bls.skey")
+        | i <- [1 .. length cardanoSpoNodes] ]
+
   rpcPortsMap <- case cardanoEnableRpc of
     RpcEnabledHttp RpcHttpOptions{rpcHttpListenPortBase = Just base}
       -- Compute in Integer and narrow only after the check: PortNumber's Num is Word16 and
@@ -450,8 +455,10 @@ cardanoTestnet
           , ["--grpc-enable", "--grpc-listen-address", show rpcHttpListenAddress, "--grpc-listen-port", show rpcPort]
           )
 
+    let perasOptions = Map.lookup i perasOptionsByIndex
+
     eRuntime <- runExceptT . retryOnAddressInUseError $
-      startNode (TmpAbsolutePath tmpAbsPath) nodeName testnetDefaultIpv4Address port testnetMagic (nodeBin nodeWithOptions) $
+      startNode (TmpAbsolutePath tmpAbsPath) nodeName testnetDefaultIpv4Address port testnetMagic (nodeBin nodeWithOptions) perasOptions $
         [ "run"
         , "--config", nodeConfigFile'
         , "--topology", tmpAbsPath </> defaultNodeTopologyFile nodeName
