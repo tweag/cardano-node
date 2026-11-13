@@ -448,6 +448,8 @@ mkConsensusTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
           traceWith perasVoteForgingTr
       , Consensus.leiosFetchServerTracer = nullTracer
       , Consensus.leiosDbTracer = nullTracer
+      , Consensus.leiosNotifyClientTracer = nullTracer
+      , Consensus.leiosVoteStateTracer = nullTracer
       }
 
 mkNodeToClientTracers :: forall blk.
