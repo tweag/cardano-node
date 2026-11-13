@@ -494,6 +494,14 @@ instance LogFormatting (Simple.AnyMessage (ObjectDiffusion objectId object)) whe
      mconcat [ "kind" .= String "MsgReplyObjects"
               , "agency" .= String (pack $ show stok)
               ]
+   forMachine _dtal (Simple.AnyMessageAndAgency stok OD.MsgAwaitReply {}) =
+     mconcat [ "kind" .= String "MsgAwaitReply"
+              , "agency" .= String (pack $ show stok)
+              ]
+   forMachine _dtal (Simple.AnyMessageAndAgency stok OD.MsgServerIdle {}) =
+     mconcat [ "kind" .= String "MsgServerIdle"
+              , "agency" .= String (pack $ show stok)
+              ]
    forMachine _dtal (Simple.AnyMessageAndAgency stok OD.MsgDone {}) =
      mconcat [ "kind" .= String "MsgDone"
               , "agency" .= String (pack $ show stok)
@@ -510,6 +518,10 @@ instance MetaTrace (Simple.AnyMessage (ObjectDiffusion objectId object)) where
       Namespace [] ["RequestObjects"]
     namespaceFor (Simple.AnyMessageAndAgency _agency OD.MsgReplyObjects {}) =
       Namespace [] ["ReplyObjects"]
+    namespaceFor (Simple.AnyMessageAndAgency _agency OD.MsgAwaitReply {}) =
+      Namespace [] ["AwaitReply"]
+    namespaceFor (Simple.AnyMessageAndAgency _agency OD.MsgServerIdle {}) =
+      Namespace [] ["ServerIdle"]
     namespaceFor (Simple.AnyMessageAndAgency _agency OD.MsgDone {}) =
       Namespace [] ["Done"]
 
@@ -518,6 +530,8 @@ instance MetaTrace (Simple.AnyMessage (ObjectDiffusion objectId object)) where
     severityFor (Namespace [] ["ReplyObjectIds"]) _ = Just Info
     severityFor (Namespace [] ["RequestObjects"]) _ = Just Info
     severityFor (Namespace [] ["ReplyObjects"]) _ = Just Info
+    severityFor (Namespace [] ["AwaitReply"]) _ = Just Info
+    severityFor (Namespace [] ["ServerIdle"]) _ = Just Info
     severityFor (Namespace [] ["Done"]) _ = Just Info
     severityFor _ _ = Nothing
 
@@ -526,6 +540,8 @@ instance MetaTrace (Simple.AnyMessage (ObjectDiffusion objectId object)) where
     documentFor (Namespace [] ["ReplyObjectIds"]) = Just ""
     documentFor (Namespace [] ["RequestObjects"]) = Just ""
     documentFor (Namespace [] ["ReplyObjects"]) = Just ""
+    documentFor (Namespace [] ["AwaitReply"]) = Just ""
+    documentFor (Namespace [] ["ServerIdle"]) = Just ""
     documentFor (Namespace [] ["Done"]) = Just ""
     documentFor _ = Nothing
 
@@ -535,5 +551,7 @@ instance MetaTrace (Simple.AnyMessage (ObjectDiffusion objectId object)) where
       , Namespace [] ["ReplyObjectIds"]
       , Namespace [] ["RequestObjects"]
       , Namespace [] ["ReplyObjects"]
+      , Namespace [] ["AwaitReply"]
+      , Namespace [] ["ServerIdle"]
       , Namespace [] ["Done"]
       ]
