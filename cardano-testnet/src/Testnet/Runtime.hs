@@ -93,11 +93,6 @@ mkNodeNonEmptyStderrError stderr' = do
     then NodeAddressAlreadyInUseError $ pretty stderr'
     else NodeExecutableError $ pretty stderr'
 
--- | Filter out benign debug traces on stderr.
-isBenignStderrLine :: String -> Bool
-isBenignStderrLine line =
-  null (dropWhile (== ' ') line) || isInfixOf "[Testnet Debug]:" line
-
 instance Error NodeStartFailure where
   prettyError = \case
     ProcessRelatedFailure e -> "Cannot initiate process:" <+> pshow e
@@ -233,10 +228,8 @@ startNode tp node ipv4 port _testnetMagic mNodeBin (perasPublicKeysFile, perasOp
 
     -- If we do have anything on stderr, fail.
     stdErrContents <- liftIOAnnotated $ IO.readFile nodeStderrFile
-    -- but, don't consider 'debugLog' calls to be failures.
-    let realStdErr = unlines . filter (not . isBenignStderrLine) $ lines stdErrContents
-    unless (null realStdErr) $
-      throwError $ mkNodeNonEmptyStderrError realStdErr
+    unless (null stdErrContents) $
+      throwError $ mkNodeNonEmptyStderrError stdErrContents
 
     -- No stderr and no socket? Fail.
     case res of
