@@ -81,7 +81,7 @@ import           Test.Consensus.PointSchedule
 import           Test.Consensus.PointSchedule.Peers (PeerId (..), getPeerIds, peersOnlyHonest)
 import           Test.Consensus.PointSchedule.SinglePeer (SchedulePoint (..), scheduleBlockPoint,
                    scheduleHeaderPoint, scheduleTipPoint)
-import           Test.QuickCheck (generate, scale)
+import           Test.QuickCheck (generate)
 
 import           ExitCodes
 import           Query
@@ -212,10 +212,8 @@ main = do
 
   -- TODO: The test should be parsed from `optTestFile`, but its chain and acceptance
   -- criteria are hard coded for convenience until the @testgen@ utility is implemented.
-  -- Generate a random RollBack test chain. We divide the test size by 10 here
-  -- because 'TestBlock's have a hardcoded size of 100---anything longer will
-  -- crash when being deserialized.
-  chain0 <- generate $ scale (`div` 10) $ do
+  -- Generate a random RollBack test chain.
+  chain0 <- generate $ do
     gt <- genChains $ pure 1
     pure $ gt {gtSchedule = rollbackSchedule 1 $ gtBlockTree gt}
 
