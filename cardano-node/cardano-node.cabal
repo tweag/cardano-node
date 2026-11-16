@@ -307,47 +307,37 @@ library conformance-testlib
                         ShrinkIndex
                         IssueTestBlock
   build-depends:        base
-                      , containers
-                      , comonad
-                      , checkers
                       , QuickCheck
-                      , containers
-                      , optparse-applicative
-                      , ouroboros-network:{ouroboros-network}
-                      , ouroboros-consensus:{ouroboros-consensus, unstable-consensus-testlib}
-                      , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
-                      , ouroboros-network-api
-                      , aeson
                       , bytestring
-                      , ouroboros-network-framework
+                      , cardano-crypto-class
+                      , cardano-ledger-alonzo
+                      , cardano-ledger-core
+                      , cardano-ledger-shelley
+                      , cardano-ledger-shelley-test
+                      , cardano-node
+                      , cardano-protocol-tpraos
+                      , cborg
+                      , checkers
+                      , comonad
+                      , containers
+                      , containers
+                      , contra-tracer
+                      , filepath
+                      , io-classes
                       , network
                       , network-mux
-                      , contra-tracer
-                      , resource-registry
-                      , serialise
-                      , ouroboros-network-protocols
-                      , cborg
-                      , ouroboros-consensus-diffusion
-                      , io-classes
-                      , cardano-node
-                      , cardano-api
+                      , optparse-applicative
                       , ouroboros-consensus-cardano
-                      , cardano-ledger-core:testlib
+                      , ouroboros-consensus-diffusion
+                      , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
                       , ouroboros-consensus-protocol
-                      , cardano-ledger-binary
-                      , cardano-ledger-conway-test
-                      , cardano-ledger-shelley-test
-                      , cardano-strict-containers
-                      , cardano-protocol-tpraos
-                      , cardano-ledger-binary:{cardano-ledger-binary, testlib}
-                      , cardano-ledger-shelley
-                      , cardano-ledger-core
-                      , cardano-ledger-alonzo
-                      , cardano-crypto-class
+                      , ouroboros-consensus:{ouroboros-consensus}
+                      , ouroboros-network-api
+                      , ouroboros-network-framework
+                      , ouroboros-network-protocols
+                      , ouroboros-network:{ouroboros-network}
+                      , resource-registry
                       , transformers
-                      , cardano-ledger-conway
-                      , lens
-                      , filepath
 
 
 executable conformance-test-runner
@@ -355,31 +345,21 @@ executable conformance-test-runner
   hs-source-dirs:       app
   main-is:              conformance-test-runner.hs
   build-depends:        base
-                      ,  QuickCheck
-                      ,  aeson
-                      ,  bytestring
-                      ,  cardano-api
-                      ,  cardano-node:{cardano-node, conformance-testlib}
-                      ,  cardano-protocol-tpraos
-                      ,  cborg
-                      ,  containers
-                      ,  contra-tracer
-                      ,  errors
-                      ,  io-classes
-                      ,  network
-                      ,  network-mux
-                      ,  optparse-applicative
-                      ,  ouroboros-consensus-cardano
-                      ,  ouroboros-consensus-diffusion
-                      ,  ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
-                      ,  ouroboros-consensus:{ouroboros-consensus, unstable-consensus-testlib}
-                      ,  ouroboros-network-api
-                      ,  ouroboros-network-framework
-                      ,  ouroboros-network-protocols
-                      ,  ouroboros-network:{ouroboros-network}
-                      ,  resource-registry
-                      ,  serialise
-                      ,  transformers
+                      , QuickCheck
+                      , aeson
+                      , cardano-node:{cardano-node, conformance-testlib}
+                      , cardano-protocol-tpraos
+                      , containers
+                      , contra-tracer
+                      , errors
+                      , network
+                      , ouroboros-consensus-diffusion
+                      , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
+                      , ouroboros-consensus:{ouroboros-consensus}
+                      , ouroboros-consensus-cardano
+                      , ouroboros-network
+                      , ouroboros-network-api
+                      , transformers
 
 executable conformance-test-viewer
   import:               project-config
@@ -393,7 +373,6 @@ executable conformance-test-viewer
                       , errors
                       , mtl
                       , optparse-applicative
-                      , ouroboros-consensus-cardano
                       , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
                       , QuickCheck
 

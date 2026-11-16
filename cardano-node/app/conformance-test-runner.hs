@@ -1,3 +1,8 @@
+{-# OPTIONS_GHC -Wno-missing-fields #-}
+{-# OPTIONS_GHC -Wno-orphans        #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
+
+
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -10,8 +15,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module Main (main) where
-
-import           Cardano.Api (ConsensusModeParams (..), EpochSlots (..), File (..), NetworkId (..))
 
 import           Cardano.Node.Configuration.POM (defaultPartialNodeConfiguration,
                    makeNodeConfiguration, ncProtocolConfig, parseNodeConfigurationFP)
@@ -30,7 +33,7 @@ import           Ouroboros.Consensus.Ledger.SupportsProtocol (LedgerSupportsProt
 import           Ouroboros.Consensus.MiniProtocol.ChainSync.Client.State
                    (ChainSyncClientHandleCollection (cschcMap))
 import           Ouroboros.Consensus.Node (ProtocolInfo (pInfoConfig))
-import           Ouroboros.Consensus.Node.InitStorage (NodeInitStorage, nodeImmutableDbChunkInfo)
+import           Ouroboros.Consensus.Node.InitStorage (nodeImmutableDbChunkInfo)
 import           Ouroboros.Consensus.Node.NetworkProtocolVersion (SupportedNetworkProtocolVersion)
 import           Ouroboros.Consensus.Node.Run (SerialiseNodeToNodeConstraints)
 import           Ouroboros.Consensus.Storage.ChainDB.API (ChainDB (ChainDB, getCurrentChain))
@@ -40,22 +43,16 @@ import           Ouroboros.Consensus.Util.IOLike (MonadAsync (async, uninterrupt
 import           Ouroboros.Network.AnchoredFragment (AnchoredFragment)
 import qualified Ouroboros.Network.AnchoredFragment as AF
 import           Ouroboros.Network.Block (Tip (Tip, TipGenesis), castTip, getTipPoint)
-import           Ouroboros.Network.NodeToNode (PeerAdvertise (..))
-import           Ouroboros.Network.NodeToNode.Version (DiffusionMode (..))
-import           Ouroboros.Network.PeerSelection.LedgerPeers (RelayAccessPoint (..),
-                   UseLedgerPeers (..))
+import           Ouroboros.Network.PeerSelection.LedgerPeers (RelayAccessPoint (..))
 import           Ouroboros.Network.PeerSelection.RelayAccessPoint (PortNumber)
-import           Ouroboros.Network.PeerSelection.State.LocalRootPeers (HotValency (..),
-                   WarmValency (..))
 import           Ouroboros.Network.Util.ShowProxy (ShowProxy)
 
 import           Control.Error.Util (hoistEither)
-import           Control.Monad (unless, when)
+import           Control.Monad (unless)
 import           Control.Monad.Trans.Class (lift)
 import           Control.Monad.Trans.Except
 import           Control.Tracer (Tracer (..), nullTracer, traceWith)
-import           Data.Aeson (Value, encode, encodeFile, object, throwDecode, (.=))
-import qualified Data.ByteString.Lazy.Char8 as BSL8
+import           Data.Aeson (Value, encodeFile, object, (.=))
 import           Data.Foldable
 import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Map (Map)
@@ -92,7 +89,7 @@ import           Server (run)
 import qualified ShrinkIndex as Ix
 import           ShrinkIndex (ShrinkIndex, ShrinkTree, makeShrinkTree)
 
-instance ( NodeInitStorage (CardanoBlock StandardCrypto)) => HasPointScheduleTestParams (CardanoBlock StandardCrypto) where
+instance HasPointScheduleTestParams (CardanoBlock StandardCrypto) where
   data ProtocolInfoArgs (CardanoBlock StandardCrypto) = CardanoInfoArgs (CardanoProtocolParams StandardCrypto)
   mkProtocolInfo _ _ _ (CardanoInfoArgs args) = fst $ protocolInfoCardano @_ @IO args
   getProtocolInfoArgs = fmap (CardanoInfoArgs . either (error . mappend "getProtocolInfoArgs: ") id) $ runExceptT $ do

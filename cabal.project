@@ -35,8 +35,8 @@ packages:
 
 source-repository-package
     type: git
-    tag: c4a561c179e91f9f390ea933215b77eb3a6027b8
-    --sha256: sha256-qGufSSEjut5fDXbTeLn192yt2HAp+UXLcgr2F+sMQWE=
+    tag: a4051214edf381638e93d93714edb35e55eb3573
+    --sha256: sha256-FnIKrnWLV8Xg5eAwHjE5zWIDXr7KkIyLhVU0XUiQid4=
     location: https://github.com/tweag/ouroboros-consensus-testing.git
     subdir: ouroboros-consensus ouroboros-consensus-diffusion ouroboros-consensus-cardano
 
