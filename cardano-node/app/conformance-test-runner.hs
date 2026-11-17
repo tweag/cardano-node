@@ -228,6 +228,20 @@ main = do
 
   let ct = getTest $ at All.testSuite $ rtcTestKey rtc
 
+  -- The seed only reproduces the intended test case if the generator hasn't
+  -- changed since the test file was produced.
+  unless (rtcTestVersion rtc == ctVersion ct) $ do
+    hPutStrLn stderr $ mconcat
+      [ "Test version mismatch for "
+      , show $ rtcTestKey rtc
+      , ": test file has "
+      , show $ rtcTestVersion rtc
+      , ", but the runner has "
+      , show $ ctVersion ct
+      , ". Try generating a new test file."
+      ]
+    exitWithStatus BadUsage
+
   -- Deterministically generate the test case from the serialized seed, using
   -- the test's adjustment of QuickCheck's default maximum size.
   let Seed seed = rtcSeed rtc
