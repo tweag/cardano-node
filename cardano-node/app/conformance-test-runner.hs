@@ -69,11 +69,11 @@ import           System.Environment (getArgs)
 import           System.IO (hPutStrLn, stderr)
 
 import           Test.Consensus.BlockTree (prettyBlockTree)
-import           Test.Consensus.Genesis.Setup (ConformanceTest (..))
+import           Test.Consensus.Genesis.Setup (AdjustMaxSize (..), ConformanceTest (..))
 import           Test.Consensus.Genesis.Setup.GenChains
 import           Test.Consensus.Genesis.TestSuite (at, getTest)
 import qualified Test.Consensus.Genesis.TestSuite.All as All
-import           Test.Consensus.Serialize (ReifiedTestCase (..))
+import           Test.Consensus.Serialize (ReifiedTestCase (..), Seed (..))
 import           Test.Consensus.OrphanInstances ()
 import           Test.Consensus.PeerSimulator.Config ()
 import           Test.Consensus.PeerSimulator.NodeLifecycle
@@ -84,8 +84,9 @@ import           Test.Consensus.PeerSimulator.StateView
 import           Test.Consensus.PeerSimulator.Trace
 import           Test.Consensus.PointSchedule
 import           Test.Consensus.PointSchedule.Peers (PeerId (..), getPeerIds)
-import           Test.QuickCheck (Args (..), Property, generate, isSuccess,
+import           Test.QuickCheck (Args (..), Property, isSuccess,
                    quickCheckWithResult, stdArgs)
+import           Test.QuickCheck.Gen (unGen)
 
 import           ExitCodes
 import           Query
@@ -227,7 +228,11 @@ main = do
 
   let ct = getTest $ at All.testSuite $ rtcTestKey rtc
 
-  chain0 <- generate $ ctGenerator ct
+  -- Deterministically generate the test case from the serialized seed, using
+  -- the test's adjustment of QuickCheck's default maximum size.
+  let Seed seed = rtcSeed rtc
+      AdjustMaxSize adjustMaxSize = ctAdjustMaxSize ct
+      chain0 = unGen (ctGenerator ct) seed $ adjustMaxSize $ rtcSize rtc
 
   let tree = makeShrinkTree shrinkGenesisTest chain0
       inputIndex = optShrinkIndex opts
