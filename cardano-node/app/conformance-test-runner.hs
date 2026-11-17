@@ -91,8 +91,10 @@ import           Test.QuickCheck.Gen (unGen)
 import           ExitCodes
 import           Query
 import           Server (run)
+import           StateViewUnavailable (handleStateViewUnavailable,
+                   makeConformanceShrinkTree)
 import qualified Test.Consensus.Genesis.ShrinkIndex as Ix
-import           Test.Consensus.Genesis.ShrinkIndex (ShrinkIndex, ShrinkTree, makeShrinkTree)
+import           Test.Consensus.Genesis.ShrinkIndex (ShrinkIndex, ShrinkTree)
 
 -- | Required by 'All.testSuite'. Blocks are ordered by their point
 -- (slot, then hash), which is consistent with block identity.
@@ -110,19 +112,6 @@ instance HasPointScheduleTestParams (CardanoBlock StandardCrypto) where
     withExceptT show $ mkCardanoProtocolParams
       byronConfig shelleyConfig alonzoConfig conwayConfig hardforkConfig checkpointsConfig Nothing
   getChunkInfoFromTopLevelConfig = nodeImmutableDbChunkInfo . topLevelConfigStorage
-
--- | Dummy shrinker for all 'GenesisTest'.
---
--- NOTE: Shrinkers for 'GenesisTests' are allowed to inspect the output value
--- (the resulting 'StateView') to increase their expressivity.
--- It is argued that this makes sense if the “run” phase is particularly
--- expensive. See:
--- ouroboros-consensus/ouroboros-consensus/src/unstable-testlib/Test/Util/QuickCheck.hs
---
--- However, this considerations seem to not apply in this setting as
--- such a state view is derived from protocol messages.
-shrinkGenesisTest :: GenesisTestFull blk -> [GenesisTestFull blk]
-shrinkGenesisTest _ = []
 
 data TestResult = TestSuccess | TestFailure deriving (Eq, Ord, Show, Enum, Bounded)
 
@@ -216,7 +205,9 @@ makeTopology ports = object
   num_peers = length ports
 
 main :: IO ()
-main = do
+main = flip handleStateViewUnavailable (do
+    hPutStrLn stderr "The test's shrinker inspected the StateView, which is unavailable"
+    exitWithStatus InternalError) $ do
   args <- getArgs
   opts <- parseOptions args
 
@@ -248,7 +239,7 @@ main = do
       AdjustMaxSize adjustMaxSize = ctAdjustMaxSize ct
       chain0 = unGen (ctGenerator ct) seed $ adjustMaxSize $ rtcSize rtc
 
-  let tree = makeShrinkTree shrinkGenesisTest chain0
+  let tree = makeConformanceShrinkTree ct chain0
       inputIndex = optShrinkIndex opts
   -- Note that both no index and the empty index must
   -- return the original chain. See [NOTE: shrink-index-properties]
