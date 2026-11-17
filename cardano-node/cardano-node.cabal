@@ -304,7 +304,6 @@ library conformance-testlib
                         Options
                         Query
                         Server
-                        ShrinkIndex
                         IssueTestBlock
   build-depends:        base
                       , QuickCheck
@@ -317,9 +316,6 @@ library conformance-testlib
                       , cardano-node
                       , cardano-protocol-tpraos
                       , cborg
-                      , checkers
-                      , comonad
-                      , containers
                       , containers
                       , contra-tracer
                       , filepath
@@ -384,18 +380,3 @@ executable conformance-test-gen
                       , optparse-applicative
                       , ouroboros-consensus:unstable-consensus-testlib
                       , ouroboros-consensus-diffusion:unstable-consensus-conformance-testlib
-
-test-suite conformance-testlib-test
-  import:               project-config
-  hs-source-dirs:       test
-  main-is:              conformance-testlib-test.hs
-  type:                 exitcode-stdio-1.0
-
-  build-depends:        base
-                      , cardano-node:conformance-testlib
-                      , comonad
-                      , checkers
-                      , tasty
-                      , tasty-quickcheck
-
-  other-modules:        Test.Cardano.Conformance.ShrinkIndex

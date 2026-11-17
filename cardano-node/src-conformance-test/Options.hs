@@ -14,7 +14,7 @@ import qualified Options.Applicative as O
 import           System.IO (hPutStrLn, stderr)
 
 import           ExitCodes
-import           ShrinkIndex
+import           Test.Consensus.Genesis.ShrinkIndex (ShrinkIndex, path)
 
 newtype NutPort = NutPort { getNutPort :: PortNumber }
 
