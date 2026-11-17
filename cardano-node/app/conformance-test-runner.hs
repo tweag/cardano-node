@@ -65,6 +65,7 @@ import           Data.Traversable
 import qualified Network.Socket as Socket
 import           Options
 import           System.Environment (getArgs)
+import           System.IO (hPutStrLn, stderr)
 
 import           Test.Consensus.BlockTree (BlockTree (..), BlockTreeBranch (..), onTrunk,
                    prettyBlockTree)
@@ -223,7 +224,7 @@ main = do
   -- return the original chain. See [NOTE: shrink-index-properties]
   chain <- case Ix.lookup (fold inputIndex) tree of
     Nothing -> do
-      putStrLn "Incorrect shrink index"
+      hPutStrLn stderr "Incorrect shrink index"
       exitWithStatus BadUsage
     Just chain' -> pure chain'
 
