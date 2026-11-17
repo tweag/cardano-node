@@ -18,6 +18,8 @@ import           Cardano.Benchmarking.LogTypes (EnvConsts (..), SendRecvConnect,
 import           Cardano.Network.NodeToClient (chainSyncPeerNull)
 import           Cardano.Network.NodeToNode (NetworkConnectTracers (..))
 import qualified Cardano.Network.NodeToNode as NtN
+import           Cardano.Network.Diffusion.Configuration (defaultNodeTxSubmissionConfig)
+import           Ouroboros.Network.TxSubmission.Inbound.V2 (TxSubmissionLogicVersion (..))
 import           Cardano.Prelude (forever, liftIO, throwIO)
 import           Cardano.TxGenerator.Setup.NixService (defaultKeepaliveTimeout, getKeepaliveTimeout)
 import           Ouroboros.Consensus.Block.Abstract
@@ -107,6 +109,8 @@ benchmarkConnectTxSubmit EnvConsts { .. } handshakeTracer submissionTracer codec
 
   n2nVer :: NodeToNodeVersion
   n2nVer = NodeToNodeV_16
+  miniProtocolParameters =
+    NtN.mkDefaultMiniProtocolParameters TxSubmissionLogicV1 defaultNodeTxSubmissionConfig
   blkN2nVer :: BlockNodeToNodeVersion blk
   blkN2nVer = supportedVers Map.! n2nVer
   supportedVers :: Map.Map NodeToNodeVersion (BlockNodeToNodeVersion blk)
@@ -134,7 +138,7 @@ benchmarkConnectTxSubmit EnvConsts { .. } handshakeTracer submissionTracer codec
        }) $
       \n2nData ->
         mkApp $
-        NtN.nodeToNodeProtocols mempty NtN.defaultMiniProtocolParameters
+        NtN.nodeToNodeProtocols mempty miniProtocolParameters
           NtN.NodeToNodeProtocols
             { NtN.chainSyncProtocol = InitiatorProtocolOnly $ MiniProtocolCb $ \_ctx channel ->
                                         runPeer
