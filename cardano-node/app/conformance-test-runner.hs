@@ -6,6 +6,7 @@
 {-# LANGUAGE DerivingStrategies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -22,7 +23,8 @@ import           Cardano.Node.Protocol.Cardano (mkCardanoProtocolParams)
 import           Cardano.Node.Run ()
 import           Cardano.Node.Types (ConfigYamlFilePath (..), NodeProtocolConfiguration (..))
 import           Cardano.Protocol.Crypto (StandardCrypto)
-import           Ouroboros.Consensus.Block (GetHeader (getHeader), Header)
+import           Ouroboros.Consensus.Block (GetHeader (getHeader), Header, blockPoint)
+import           Data.Ord (comparing)
 import           Ouroboros.Consensus.Cardano (CardanoBlock)
 import           IssueTestBlock ()
 import           Ouroboros.Consensus.Cardano.Node (CardanoProtocolParams, protocolInfoCardano)
@@ -39,10 +41,9 @@ import           Ouroboros.Consensus.Node.Run (SerialiseNodeToNodeConstraints)
 import           Ouroboros.Consensus.Storage.ChainDB.API (ChainDB (ChainDB, getCurrentChain))
 import           Ouroboros.Consensus.Util.IOLike (MonadAsync (async, uninterruptibleCancel),
                    MonadCatch (try), MonadDelay (threadDelay), MonadSTM (atomically, retry),
-                   SomeException, Time (Time), newTVarIO, readTVar)
-import           Ouroboros.Network.AnchoredFragment (AnchoredFragment)
+                   SomeException, newTVarIO, readTVar)
 import qualified Ouroboros.Network.AnchoredFragment as AF
-import           Ouroboros.Network.Block (Tip (Tip, TipGenesis), castTip, getTipPoint)
+import           Ouroboros.Network.Block (Tip (Tip, TipGenesis))
 import           Ouroboros.Network.PeerSelection.LedgerPeers (RelayAccessPoint (..))
 import           Ouroboros.Network.PeerSelection.RelayAccessPoint (PortNumber)
 import           Ouroboros.Network.Util.ShowProxy (ShowProxy)
@@ -52,7 +53,7 @@ import           Control.Monad (unless)
 import           Control.Monad.Trans.Class (lift)
 import           Control.Monad.Trans.Except
 import           Control.Tracer (Tracer (..), nullTracer, traceWith)
-import           Data.Aeson (Value, encodeFile, object, (.=))
+import           Data.Aeson (Value, eitherDecodeFileStrict, encodeFile, object, (.=))
 import           Data.Foldable
 import qualified Data.List.NonEmpty as NonEmpty
 import           Data.Map (Map)
@@ -67,9 +68,12 @@ import           Options
 import           System.Environment (getArgs)
 import           System.IO (hPutStrLn, stderr)
 
-import           Test.Consensus.BlockTree (BlockTree (..), BlockTreeBranch (..), onTrunk,
-                   prettyBlockTree)
+import           Test.Consensus.BlockTree (prettyBlockTree)
+import           Test.Consensus.Genesis.Setup (ConformanceTest (..))
 import           Test.Consensus.Genesis.Setup.GenChains
+import           Test.Consensus.Genesis.TestSuite (at, getTest)
+import qualified Test.Consensus.Genesis.TestSuite.All as All
+import           Test.Consensus.Serialize (ReifiedTestCase (..))
 import           Test.Consensus.OrphanInstances ()
 import           Test.Consensus.PeerSimulator.Config ()
 import           Test.Consensus.PeerSimulator.NodeLifecycle
@@ -79,16 +83,20 @@ import           Test.Consensus.PeerSimulator.Run
 import           Test.Consensus.PeerSimulator.StateView
 import           Test.Consensus.PeerSimulator.Trace
 import           Test.Consensus.PointSchedule
-import           Test.Consensus.PointSchedule.Peers (PeerId (..), getPeerIds, peersOnlyHonest)
-import           Test.Consensus.PointSchedule.SinglePeer (SchedulePoint (..), scheduleBlockPoint,
-                   scheduleHeaderPoint, scheduleTipPoint)
-import           Test.QuickCheck (generate)
+import           Test.Consensus.PointSchedule.Peers (PeerId (..), getPeerIds)
+import           Test.QuickCheck (Args (..), Property, generate, isSuccess,
+                   quickCheckWithResult, stdArgs)
 
 import           ExitCodes
 import           Query
 import           Server (run)
 import qualified Test.Consensus.Genesis.ShrinkIndex as Ix
 import           Test.Consensus.Genesis.ShrinkIndex (ShrinkIndex, ShrinkTree, makeShrinkTree)
+
+-- | Required by 'All.testSuite'. Blocks are ordered by their point
+-- (slot, then hash), which is consistent with block identity.
+instance Ord (CardanoBlock StandardCrypto) where
+  compare = comparing blockPoint
 
 instance HasPointScheduleTestParams (CardanoBlock StandardCrypto) where
   data ProtocolInfoArgs (CardanoBlock StandardCrypto) = CardanoInfoArgs (CardanoProtocolParams StandardCrypto)
@@ -211,12 +219,15 @@ main = do
   args <- getArgs
   opts <- parseOptions args
 
-  -- TODO: The test should be parsed from `optTestFile`, but its chain and acceptance
-  -- criteria are hard coded for convenience until the @testgen@ utility is implemented.
-  -- Generate a random RollBack test chain.
-  chain0 <- generate $ do
-    gt <- genChains $ pure 1
-    pure $ gt {gtSchedule = rollbackSchedule 1 $ gtBlockTree gt}
+  rtc <- eitherDecodeFileStrict @(ReifiedTestCase All.TestKey) (optTestFile opts) >>= \case
+    Left err -> do
+      hPutStrLn stderr $ "Failed to parse test file: " <> err
+      exitWithStatus BadUsage
+    Right rtc' -> pure rtc'
+
+  let ct = getTest $ at All.testSuite $ rtcTestKey rtc
+
+  chain0 <- generate $ ctGenerator ct
 
   let tree = makeShrinkTree shrinkGenesisTest chain0
       inputIndex = optShrinkIndex opts
@@ -234,6 +245,7 @@ main = do
         (optNutPort opts)
         (optSimPeerPort opts)
         (optOutputTopologyFile opts)
+        (ctProperty ct)
         chain
   case res of
     Left _ -> exitWithStatus InternalError
@@ -276,9 +288,10 @@ runServer ::
   => NutPort  -- ^ Node-to-node TCP port of the node under test
   -> SimPeerPort  -- ^ Starting port for simulated peers
   -> FilePath  -- ^ File path to output the generated topology file
-  -> GenesisTest blk (PointSchedule blk)
+  -> (GenesisTestFull blk -> StateView blk -> Property)  -- ^ Test property
+  -> GenesisTestFull blk
   -> IO TestResult
-runServer nutPort firstPort outputTopologyPath (GenesisTest {gtSchedule, gtSecurityParam, gtForecastRange, gtGenesisWindow, gtBlockTree}) = do
+runServer nutPort firstPort outputTopologyPath prop gt@(GenesisTest {gtSchedule, gtSecurityParam, gtForecastRange, gtGenesisWindow, gtBlockTree}) = do
   let peerMap = buildPeerMap firstPort gtSchedule
 
   -- Print out the generated block tree so that the person running the test
@@ -375,7 +388,7 @@ runServer nutPort firstPort outputTopologyPath (GenesisTest {gtSchedule, gtSecur
   -- Finally, build a 'StateView' we can use to evaluate the test's acceptance
   -- criteria.
   results <- svtGetPeerSimulatorResults stateViewTracers
-  let _sv = StateView
+  let sv = StateView
         { svSelectedChain = AF.mapAnchoredFragment getHeader selectedChain
         , svPeerSimulatorResults = results
         , svTipBlock = Just $ either (error "selected chain is empty") id $ AF.head selectedChain
@@ -391,43 +404,6 @@ runServer nutPort firstPort outputTopologyPath (GenesisTest {gtSchedule, gtSecur
   -- Kill all of the simulated peers.
   for_ peerServers $ uninterruptibleCancel . snd
 
-  -- Return the test's acceptance criteria.
-
-  -- This should be parsed out of the test file parameter and computed from
-  -- the 'StateView', but is currently hard coded for convenience.
-  pure . boolToTestResult $ not . onTrunk gtBlockTree $ getTipPoint $ castTip tip
-
---------------------------------------------------------------------------------
--- The remainder of this file is copied from the ouroboros-consensus
--- PeerSimulator RollBack test, because it's not yet convenient to import it.
-
--- | A schedule that advertises all the points of the trunk up until the nth
--- block after the intersection, then switches to the first alternative
--- chain of the given block tree.
---
--- PRECONDITION: Block tree with at least one alternative chain.
--- NOTE: This function is currently used to hard code the test case generation,
--- which is not part of the @test-runner@ functionality.
--- TODO: Make sure to handle the previous precondition appropriately when
--- implementing @testgen@.
-rollbackSchedule :: AF.HasHeader blk => Int -> BlockTree blk -> PointSchedule blk
-rollbackSchedule n blockTree =
-    let branch = case btBranches blockTree of
-          [b] -> b
-          _   -> error "The block tree must have exactly one alternative branch"
-        trunkSuffix = AF.takeOldest n (btbTrunkSuffix branch)
-        schedulePoints = concat
-          [ banalSchedulePoints (btbPrefix branch)
-          , banalSchedulePoints trunkSuffix
-          , banalSchedulePoints (btbSuffix branch)
-          ]
-    in PointSchedule {
-         psSchedule = peersOnlyHonest $ zip (map (Time . (/30)) [0..]) schedulePoints,
-         psStartOrder = [],
-         psMinEndTime = Time 0
-       }
-  where
-    banalSchedulePoints :: AnchoredFragment blk -> [SchedulePoint blk]
-    banalSchedulePoints = concatMap banalSchedulePoints' . AF.toOldestFirst
-    banalSchedulePoints' :: blk -> [SchedulePoint blk]
-    banalSchedulePoints' block = [scheduleTipPoint block, scheduleHeaderPoint block, scheduleBlockPoint block]
+  -- Evaluate the test's acceptance criteria.
+  qcRes <- quickCheckWithResult stdArgs {maxSuccess = 1, chatty = False} $ prop gt sv
+  pure . boolToTestResult $ isSuccess qcRes
