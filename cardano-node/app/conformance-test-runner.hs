@@ -272,11 +272,12 @@ main = flip handleStateViewUnavailable (do
           let isGlobalSuccess =
                 testRes == TestSuccess &&
                  (isNothing inputIndex || inputIndex == Just mempty)
-          case (optMinimalTestOutput opts, not isGlobalSuccess, Ix.lookup ix tree) of
-            -- TODO: Encoding is commented out for now because
-            -- the test file format is not available yet.
-            (Just minimalTestFilePath, True, Just chain') -> pure () -- encodeFile minimalTestFilePath chain'
-            (Nothing, True, Just chain') -> pure () -- print $ encode chain'
+          case (not isGlobalSuccess, Ix.lookup ix tree) of
+            (True, Just minimalChain) -> do
+              putStrLn "Minimal counterexample:"
+              putStrLn $ unlines $ prettyBlockTree $ gtBlockTree minimalChain
+              for_ (optMinimalTestOutput opts) $ \minimalTestFilePath ->
+                encodeFile minimalTestFilePath $ rtc { rtcShrinkIndex = ix }
             _ -> pure ()
           pure mempty
       exitWithStatus . Flags $ testResultToFlag testRes <> mightContinueShrinking
