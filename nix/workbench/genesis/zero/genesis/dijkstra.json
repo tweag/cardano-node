@@ -276,6 +276,6 @@
   "perasTargetCommitteeSize": 0,
   "perasBootstrapRound": null,
   "perasQuorumThresholdSafetyMargin": 0,
-  "refInputsCostPerMultiAssetPolicy": 0,
+  "refInputsCostPerMultiAssetByte": 0,
   "refInputsCostPerDatumByte": 0
 }

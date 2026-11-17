@@ -43,7 +43,7 @@
     8310, 4, 1293828, 28716, 63, 0, 1, 1006041, 43623, 251, 0, 1
   ],
   "refInputsCostPerDatumByte": 0,
-  "refInputsCostPerMultiAssetPolicy": 0,
+  "refInputsCostPerMultiAssetByte": 0,
   "refScriptCostMultiplier": 1.2,
   "refScriptCostStride": 25600
 }

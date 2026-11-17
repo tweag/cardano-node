@@ -938,7 +938,7 @@
             "minor": 0
         },
         "refInputsCostPerDatumByte": 0,
-        "refInputsCostPerMultiAssetPolicy": 0,
+        "refInputsCostPerMultiAssetByte": 0,
         "refScriptCostMultiplier": 1.2,
         "refScriptCostStride": 25600,
         "stakeAddressDeposit": 400000,
@@ -1895,7 +1895,7 @@
                     "minor": 0
                 },
                 "refInputsCostPerDatumByte": 0,
-                "refInputsCostPerMultiAssetPolicy": 0,
+                "refInputsCostPerMultiAssetByte": 0,
                 "refScriptCostMultiplier": 1.2,
                 "refScriptCostStride": 25600,
                 "stakeAddressDeposit": 400000,
@@ -2841,7 +2841,7 @@
                     "minor": 0
                 },
                 "refInputsCostPerDatumByte": 0,
-                "refInputsCostPerMultiAssetPolicy": 0,
+                "refInputsCostPerMultiAssetByte": 0,
                 "refScriptCostMultiplier": 1.2,
                 "refScriptCostStride": 25600,
                 "stakeAddressDeposit": 400000,
@@ -3784,7 +3784,7 @@
             "minor": 0
         },
         "refInputsCostPerDatumByte": 0,
-        "refInputsCostPerMultiAssetPolicy": 0,
+        "refInputsCostPerMultiAssetByte": 0,
         "refScriptCostMultiplier": 1.2,
         "refScriptCostStride": 25600,
         "stakeAddressDeposit": 400000,
