@@ -17,7 +17,7 @@ cabal run cardano-node:conformance-test-runner -- \
     --topology-file=/tmp/topology.file \
     --nut-port="$NUT_NTN_PORT" \
     --port=6000 \
-    unused_mandatory_argument &
+    ./timeout.test &
 TEST_PID=$!
 
 # test-runner might require a build, so we can't necessarily start cardano-node
