@@ -77,6 +77,7 @@ import           Ouroboros.Consensus.Cardano.Peras (mkCardanoPerasVoteForging)
 import           Ouroboros.Consensus.Committee.Types (PoolId (..))
 import qualified Ouroboros.Consensus.Committee.Crypto.BLS as PerasBLS
 import qualified Ouroboros.Consensus.Peras.Crypto.BLS as PerasCrypto
+import           Ouroboros.Consensus.Peras.Voting.V1 (ledgerKeyScope)
 import           Ouroboros.Consensus.Protocol.Praos.Common (PraosCanBeLeader (..))
 import qualified Ouroboros.Consensus.Cardano.Node as CardanoConsensus
 import qualified Ouroboros.Consensus.Config as Consensus
@@ -819,6 +820,7 @@ updatePerasVoteForging startupTracer blockType nodeKernel nc failOnKeyError bloc
             [credential] -> Just (poolIdFromShelleyLeaderCredentials credential)
             _ -> Nothing
 
+    credentials :: [ShelleyLeaderCredentials Api.StandardCrypto]
     credentials = case blockType of
       Api.CardanoBlockType ->
         case blockForgingStatus of
@@ -841,7 +843,7 @@ readPerasBLSPrivateKey :: FilePath -> IO (Either String PerasCrypto.PerasPrivate
 readPerasBLSPrivateKey fp = do
   content <- try @IOException (BS.readFile fp)
   pure $ do
-    bytes <- either (Left . ("Could not read Peras BLS private key file " <> fp <> ": " <>) . show) Right content
+    bytes <- either (\e -> Left ("Could not read Peras BLS private key file " <> fp <> ": " <> show e)) Right content
     envelope <- either (const (Left $ "Could not parse Peras BLS private key file " <> fp)) Right
                   (Aeson.eitherDecodeStrict' bytes :: Either String Aeson.Value)
     cborHex <- case envelope of
@@ -857,7 +859,7 @@ readPerasBLSPrivateKey fp = do
       bytes | BS.length bytes == 34 && BS.take 2 bytes == BS.pack [0x58, 0x20] -> Right (BS.drop 2 bytes)
       _ -> Left $ "Invalid CBOR byte-string encoding in Peras BLS private key file " <> fp
     privateKey <- maybe (Left $ "Invalid Peras BLS private key in file " <> fp) Right
-      (PerasBLS.rawDeserialisePrivateKey "TESTNET" rawKey)
+      (PerasBLS.rawDeserialisePrivateKey ledgerKeyScope rawKey)
     pure $ PerasCrypto.PerasPrivateKey privateKey
 
 #ifdef UNIX
