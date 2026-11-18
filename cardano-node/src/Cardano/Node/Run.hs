@@ -1026,6 +1026,8 @@ mkDiffusionConfiguration
     , Diffusion.dcMuxForkPolicy
     , Diffusion.dcLocalMuxForkPolicy
     , Diffusion.dcEgressPollInterval       = ncEgressPollInterval nc
+      -- Keep no mux counters: nothing traces them yet
+    , Diffusion.dcMuxCountersInterval      = 0
     }
   where
     dcPeerSelectionTargets = PeerSelectionTargets {

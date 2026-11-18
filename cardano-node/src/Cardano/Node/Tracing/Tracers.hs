@@ -729,6 +729,7 @@ mkDiffusionTracers configReflection trBase trForward mbTrEKG _trDataPoint trConf
            traceWith dtHandshakeTracer
        , Diffusion.dtLocalMuxTracer = mkTracer $
            traceWith dtLocalMuxTr
+       , Diffusion.dtMuxCountersTracer = nullTracer
        , Diffusion.dtLocalChannelTracer = mkTracer $
            traceWith dtLocalChannelTracer
        , Diffusion.dtLocalBearerTracer = mkTracer $
