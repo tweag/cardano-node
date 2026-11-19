@@ -11,10 +11,10 @@ import           System.Environment (getArgs)
 import           System.Exit (exitFailure, exitSuccess)
 import           System.IO (hPutStrLn, stderr)
 
-import qualified Test.Consensus.Genesis.Tests as Genesis
 import           Test.Consensus.Genesis.TestSuite (keyName, suiteKeys)
-import qualified Test.Consensus.PeerSimulator.Tests as PeerSimulator
+import qualified Test.Consensus.Genesis.TestSuite.All as All
 import           Test.Util.TestBlock (TestBlock)
+
 
 data Command = ListClasses
 
@@ -57,7 +57,8 @@ main :: IO ()
 main = do
   cmd <- getArgs >>= parseOptions
   case cmd of
-    ListClasses -> traverse_ putStrLn $ mconcat
-      [ fmap keyName . suiteKeys $ Genesis.testSuite @TestBlock
-      , fmap keyName . suiteKeys $ PeerSimulator.testSuite @TestBlock
-      ]
+    ListClasses -> traverse_ (putStrLn . keyName) allKeys
+
+allKeys :: [All.TestKey]
+allKeys = suiteKeys $ All.testSuite @TestBlock
+
