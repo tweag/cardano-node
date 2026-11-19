@@ -2,21 +2,62 @@
 
 module Main (main) where
 
-import           Data.Foldable (traverse_)
+import           Data.Aeson (encode)
+import qualified Data.ByteString.Lazy.Char8 as BSL
+import           Data.Foldable (find, traverse_)
 import           Options.Applicative (CompletionResult (execCompletion), Parser, ParserInfo,
-                   ParserResult (CompletionInvoked, Failure, Success), command, defaultPrefs,
-                   execParserPure, fullDesc, header, helper, info, progDesc, renderFailure,
-                   subparser, (<**>))
+                   ParserResult (CompletionInvoked, Failure, Success), argument, command,
+                   defaultPrefs, eitherReader, execParserPure, fullDesc, header, help, helper,
+                   info, long, metavar, optional, option, progDesc, renderFailure,
+                   strOption, subparser, (<**>))
 import           System.Environment (getArgs)
 import           System.Exit (exitFailure, exitSuccess)
 import           System.IO (hPutStrLn, stderr)
+import           Text.Read (readMaybe)
 
-import           Test.Consensus.Genesis.TestSuite (keyName, suiteKeys)
+import           Test.Consensus.Genesis.Setup (ConformanceTest (..))
+import           Test.Consensus.Genesis.TestSuite (at, getTest, keyName, suiteKeys)
 import qualified Test.Consensus.Genesis.TestSuite.All as All
+import           Test.Consensus.Serialize (ReifiedTestCase (..), Seed (..))
+import           Test.QuickCheck.Random (newQCGen)
 import           Test.Util.TestBlock (TestBlock)
 
+data Command
+  = ListClasses
+  | Generate GenerateOpts
 
-data Command = ListClasses
+data GenerateOpts = GenerateOpts
+  { genSeed   :: Maybe Seed
+  , genOutput :: Maybe FilePath
+  , genKey    :: All.TestKey
+  }
+
+parseKey :: String -> Either String All.TestKey
+parseKey s = maybe (Left $ "Unknown test class: " <> s) Right $
+  find ((== s) . keyName) allKeys
+
+parseSeed :: String -> Either String Seed
+parseSeed s = maybe (Left $ "Invalid seed: " <> s) (Right . Seed) $ readMaybe s
+
+generateP :: Parser GenerateOpts
+generateP = GenerateOpts
+  <$> optional (option (eitherReader parseSeed)
+        (mconcat
+          [ long "seed"
+          , metavar "SEED"
+          , help "Seed for test case generation"
+          ]))
+  <*> optional (strOption
+        (mconcat
+          [ long "output"
+          , metavar "FILE"
+          , help "Output file"
+          ]))
+  <*> argument (eitherReader parseKey)
+        (mconcat
+          [ metavar "CLASS"
+          , help "Test class, as given by `list-classes`"
+          ])
 
 options :: ParserInfo Command
 options =
@@ -38,6 +79,12 @@ commandP =
             (pure ListClasses)
             (progDesc "List available conformance test keys")
         )
+    <> command
+        "generate"
+        ( info
+            (Generate <$> generateP <**> helper)
+            (progDesc "Generate a serialized conformance test case")
+        )
     )
 
 parseOptions :: [String] -> IO Command
@@ -58,6 +105,17 @@ main = do
   cmd <- getArgs >>= parseOptions
   case cmd of
     ListClasses -> traverse_ (putStrLn . keyName) allKeys
+    Generate opts -> do
+      seed <- maybe (fmap Seed newQCGen) pure $ genSeed opts
+      let key = genKey opts
+          ct = getTest $ at (All.testSuite @TestBlock) key
+          rtc = ReifiedTestCase
+            { rtcTestKey = key
+            , rtcTestVersion = ctVersion ct
+            , rtcShrinkIndex = mempty
+            , rtcSeed = seed
+            }
+      maybe BSL.putStrLn BSL.writeFile (genOutput opts) $ encode rtc
 
 allKeys :: [All.TestKey]
 allKeys = suiteKeys $ All.testSuite @TestBlock
