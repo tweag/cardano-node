@@ -86,8 +86,8 @@ import           Test.QuickCheck (generate)
 import           ExitCodes
 import           Query
 import           Server (run)
-import qualified ShrinkIndex as Ix
-import           ShrinkIndex (ShrinkIndex, ShrinkTree, makeShrinkTree)
+import qualified Test.Consensus.Genesis.ShrinkIndex as Ix
+import           Test.Consensus.Genesis.ShrinkIndex (ShrinkIndex, ShrinkTree, makeShrinkTree)
 
 instance HasPointScheduleTestParams (CardanoBlock StandardCrypto) where
   data ProtocolInfoArgs (CardanoBlock StandardCrypto) = CardanoInfoArgs (CardanoProtocolParams StandardCrypto)

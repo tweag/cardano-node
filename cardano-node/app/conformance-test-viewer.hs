@@ -23,7 +23,7 @@ import           Data.List (groupBy)
 import qualified ExitCodes as Exit
 import           Options.Applicative
 -- import           Ouroboros.Consensus.Byron.Ledger.Block
-import           ShrinkIndex
+import           Test.Consensus.Genesis.ShrinkIndex
 import           System.Environment (getArgs)
 import           System.IO (hPutStr, hPutStrLn, stderr)
 import           Test.Consensus.OrphanInstances ()
