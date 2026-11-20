@@ -305,6 +305,7 @@ library conformance-testlib
                         Query
                         Server
                         IssueTestBlock
+                        StateViewUnavailable
   build-depends:        base
                       , QuickCheck
                       , bytestring
