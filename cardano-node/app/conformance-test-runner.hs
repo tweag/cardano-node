@@ -243,6 +243,11 @@ main = flip handleStateViewUnavailable (do
       inputIndex = optShrinkIndex opts
   -- Note that both no index and the empty index must
   -- return the original chain. See [NOTE: shrink-index-properties]
+
+  -- TODO(sandy): there is a bug here! We also need to fold in
+  -- 'rtcShrinkIndex', but if we do that, we can't separate it out again in
+  -- order to extend just the @inputIndex@ tail! This is missing
+  -- a @stripPrefix@ function on 'ShrinkIndex'.
   chain <- case Ix.lookup (fold inputIndex) tree of
     Nothing -> do
       hPutStrLn stderr "Incorrect shrink index"
