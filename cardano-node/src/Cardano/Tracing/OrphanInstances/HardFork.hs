@@ -48,19 +48,10 @@ import           Ouroboros.Consensus.TypeFamilyWrappers
 import           Ouroboros.Consensus.Util.Condense (Condense (..))
 
 import           Data.Aeson
-import qualified Data.ByteString.Base16 as Base16
-import qualified Data.ByteString.Short as SBS
 import           Data.Proxy (Proxy (..))
 import           Data.SOP (All, Compose, K (..))
 import           Data.SOP.Strict
 
-
---
--- instances for hashes
---
-
-instance Condense (OneEraHash xs) where
-    condense = condense . Base16.encode . SBS.fromShort . getOneEraHash
 
 --
 -- instances for Header HardForkBlock
