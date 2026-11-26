@@ -1,5 +1,11 @@
 # Changelog for cardano-node
 
+## Next version
+
+- New configuration key `PerasEnabled` (default `false`). When it is `true`, the
+  node enables the experimental Peras mini-protocols.
+  ([#6773](https://github.com/IntersectMBO/cardano-node/pull/6773))
+
 ## 11.2.2 -- 2026-11-16
 
 - Update bounds: ouroboros-consensus-5.4.0.1. When using the LSM backend, the
