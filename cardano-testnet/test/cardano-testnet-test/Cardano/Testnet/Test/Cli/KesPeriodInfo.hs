@@ -261,7 +261,7 @@ hprop_kes_period_info = integrationRetryWorkspace 2 "kes-period-info" $ \tempAbs
   writeConfiguration (unFile configurationFile) sbe
   newNodePortNumber <- H.randomPort testnetDefaultIpv4Address
   eRuntime <- runExceptT . retryOnAddressInUseError $
-    startNode tempAbsPath "test-spo" testnetDefaultIpv4Address newNodePortNumber testnetMagic Nothing
+    startNode tempAbsPath "test-spo" testnetDefaultIpv4Address newNodePortNumber testnetMagic Nothing Nothing
         [ "run"
         , "--config", unFile configurationFile
         , "--topology", topologyFile

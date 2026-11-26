@@ -127,11 +127,13 @@ startNode
   -- ^ Testnet magic
   -> Maybe FilePath
   -- ^ Optional custom node binary. 'Nothing' uses the default resolution.
+  -> Maybe FilePath
+  -- ^ Optional Shelley BLS signing-key file
   -> [String]
   -- ^ The command to execute to start the node.
   -- @--socket-path@, @--port@, and @--host-addr@ gets added automatically.
   -> ExceptT NodeStartFailure m TestnetNode
-startNode tp node ipv4 port _testnetMagic mNodeBin nodeCmd = GHC.withFrozenCallStack $ do
+startNode tp node ipv4 port _testnetMagic mNodeBin shelleyBLSKeyFile nodeCmd = GHC.withFrozenCallStack $ do
   let tempBaseAbsPath = makeTmpBaseAbsPath tp
       socketDir = makeSocketDir tp
       logDir = makeLogDir tp
@@ -158,6 +160,7 @@ startNode tp node ipv4 port _testnetMagic mNodeBin nodeCmd = GHC.withFrozenCallS
 
     let socketAbsPath = H.sprocketSystemName sprocket
         completeNodeCmd =  nodeCmd <>
+                             maybe [] (\fp -> ["--shelley-bls-key", fp]) shelleyBLSKeyFile <>
                              [ "--socket-path", H.sprocketArgumentName sprocket
                              , "--port", show port
                              , "--host-addr", showIpv4Address ipv4

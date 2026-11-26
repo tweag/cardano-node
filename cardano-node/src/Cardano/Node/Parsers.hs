@@ -70,12 +70,8 @@ nodeRunParser = do
   nodeConfigFp <- lastOption Cfg.parseConfigFile
 
   -- Protocol files
+  -- Includes --shelley-bls-key, which reaches the node through the protocol files.
   credentials <- Cfg.parseCredentials
-  shelleyBLSKeyFile <- optional $ strOption
-    ( long "shelley-bls-key"
-   <> metavar "FILE"
-   <> help "Path to the Shelley-scoped BLS private key text envelope (config key: ShelleyBLSKeyFile)"
-    )
   deprecatedByronCertFile <- optional parseByronDelegationCertDeprecated
   deprecatedByronKeyFile <- optional parseByronSigningKeyDeprecated
   startAsNonProducingNode <- (\depr new -> Last depr <> Last new)
@@ -108,7 +104,7 @@ nodeRunParser = do
            , pncConfigFile   = ConfigYamlFilePath <$> nodeConfigFp
            , pncTopologyFile = TopologyFile <$> topFp
            , pncDatabaseFile = dbFp
-           , pncShelleyBLSKeyFile = maybe mempty (Last . Just . Just) shelleyBLSKeyFile
+           , pncShelleyBLSKeyFile = mempty
            , pncDiffusionMode = mempty
            , pncExperimentalProtocolsEnabled = mempty
            , pncPerasEnabled = mempty
