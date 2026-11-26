@@ -74,9 +74,10 @@ import           Cardano.Logging.Utils (showT)
 
 import           Ouroboros.Consensus.Block.Forging (MkBlockForging)
 import           Ouroboros.Consensus.Cardano.Peras (mkCardanoPerasVoteForging)
-import           Ouroboros.Consensus.Committee.Types (PoolId (..))
-import qualified Ouroboros.Consensus.Committee.Crypto.BLS as PerasBLS
-import qualified Ouroboros.Consensus.Peras.Crypto.BLS as PerasCrypto
+import           Cardano.Crypto.Peras.Committee.Types (PoolId (..))
+import qualified Cardano.Crypto.Peras.Committee.Crypto.BLS as PerasBLS
+import qualified Cardano.Crypto.Peras.Crypto.BLS as PerasCrypto
+import           Ouroboros.Consensus.Peras.LedgerConversions (toCommitteePoolId)
 import           Ouroboros.Consensus.Peras.Voting.V1 (ledgerKeyScope)
 import           Ouroboros.Consensus.Protocol.Praos.Common (PraosCanBeLeader (..))
 import qualified Ouroboros.Consensus.Cardano.Node as CardanoConsensus
@@ -830,7 +831,7 @@ updatePerasVoteForging startupTracer blockType nodeKernel nc failOnKeyError bloc
       _ -> []
 
     poolIdFromShelleyLeaderCredentials =
-      PoolId
+      toCommitteePoolId
         . hashKey
         . coerceKeyRole
         . praosCanBeLeaderColdVerKey
